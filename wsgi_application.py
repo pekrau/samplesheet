@@ -33,8 +33,9 @@ else:
 REMOTE_LOGIN = 'hiseq@cbg'
 REMOTE_DIRPATH = '/home/hiseq.hiseq/samplesheets_illumina'
 
-DATADIR = '/var/local/samplesheet'
+DATADIR  = '/var/local/samplesheet'
 TRASHDIR = '/var/local/samplesheet/trash'
+TMPDIR   = '/var/local/samplesheet/tmp'
 
 HEADER = ('FCID',
           'Lane',
@@ -141,6 +142,10 @@ class Samplesheet(object):
         return os.path.join(DATADIR, self.fcid +'.csv')
 
     @property
+    def tmpfilename(self):
+        return os.path.join(TMPDIR,  self.fcid +'.csv')
+
+    @property
     def url(self):
         return get_url(self.fcid)
 
@@ -171,15 +176,30 @@ class Samplesheet(object):
             record[1] = int(record[1])
 
     def sort(self):
-        self.records.sort(key=lambda r: (r[1], r[5], r[2]))
+        self.records.sort(key=lambda r: (r[1], r[2]))
 
     def write(self):
+        "Save the records to file."
         outfile = open(self.filename, 'wb')
         writer = csv.writer(outfile)
         writer = csv.writer(outfile, quoting=csv.QUOTE_NONNUMERIC)
         writer.writerow(self.header)
         writer.writerows(self.records)
         outfile.close()
+
+    def sort_write(self):
+        """Sort and write the records to a temporary file.
+        The read in the unsorted records again.
+        """
+        outfile = open(self.tmpfilename, 'w')
+        self.sort()
+        writer = csv.writer(outfile)
+        writer = csv.writer(outfile, quoting=csv.QUOTE_NONNUMERIC)
+        writer.writerow(self.header)
+        writer.writerows(self.records)
+        outfile.close()
+        self.read()
+        return self.tmpfilename
 
 
 def home(request, response):
@@ -486,12 +506,11 @@ def update(request, response):
             record = record[:]          # Proper list copy!
             record[1] = lanes.pop()
             samplesheet.records.append(record)
-    samplesheet.write()
-    source = samplesheet.filename
+    samplesheet.write()                 # Proper save
+    source = samplesheet.sort_write()   # Sort and write to tmp, for xfer
     destination = "%s:%s/%s" % (REMOTE_LOGIN,
                                 REMOTE_DIRPATH,
                                 time.strftime("%Y", time.localtime()))
-    # XXX modify name to include prefix '.' if incomplete
     try:
         code = subprocess.check_call(['scp',
                                       '-q',
