@@ -166,12 +166,12 @@ class Samplesheet(object):
 
     def read(self):
         try:
-            infile = open(self.filename, 'rb')
+            infile = open(self.filename, 'rU')
         except OSError:
             raise HTTP_NOT_FOUND("no such %s" % self)
         reader = csv.reader(infile)
         self.header = reader.next()
-        self.records = list(reader)
+        self.records = [record for record in reader if len(record)] # Skip empty
         for record in self.records:     # Convert lane to int
             record[1] = int(record[1])
 
