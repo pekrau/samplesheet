@@ -101,6 +101,8 @@ INDEX_LOOKUP = dict(index1='ATCACG',
                     index48='TTCTCC')
 INDEX_LOOKUP.update(dict([(k.replace('index', ''), v)
                           for k,v in INDEX_LOOKUP.items()]))
+INDEX_LOOKUP.update(dict([(k.replace('index', 'idx'), v)
+                          for k,v in INDEX_LOOKUP.items()]))
 INDEX_LOOKUP.update(dict([(k.upper(), v)
                           for k,v in INDEX_LOOKUP.items()]))
 
@@ -254,7 +256,7 @@ def view(request, response, xfer_msg=None):
     header = TR(TH(),
                 TH('FCID'),
                 TH('Lane'),
-                TH('SampleID', BR(), '(with "_indexN")'),
+                TH('SampleID', BR(), '(as "ID_indexN" or "ID N")'),
                 TH('SampleRef'),
                 TH('Index', BR(), '(sequence)'),
                 TH('Description'),
@@ -440,11 +442,15 @@ def update(request, response):
             if sampleid != record[2] and index == record[4]:
                 raise KeyError
         except KeyError:
+            logging.info("samplesheet: sampleid '%s'", sampleid)
             try:
                 index = INDEX_LOOKUP[sampleid.split('_')[-1]]
-            except KeyError:
-                index = ''
-            else:
+            except (KeyError, IndexError):
+                try:
+                    index = INDEX_LOOKUP[sampleid.split()[-1]]
+                except (KeyError, IndexError):
+                    index = ''
+            if index:
                 if append_a: index += 'A'
         record[2] = sampleid
         record[4] = index
@@ -479,9 +485,12 @@ def update(request, response):
         except KeyError:
             try:
                 index = INDEX_LOOKUP[record[2].split('_')[-1]]
-            except KeyError:
-                index = ''
-            else:
+            except (KeyError, IndexError):
+                try:
+                    index = INDEX_LOOKUP[record[2].split()[-1]]
+                except (KeyError, IndexError):
+                    index = ''
+            if index:
                 if append_a: index += 'A'
         record.append(index)
         try:
