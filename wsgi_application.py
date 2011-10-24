@@ -51,6 +51,11 @@ HEADER = ('FCID',
 SAMPLEREFS = ['hg19',
               'hg18']
 
+# These index number-to-sequence mappings have been double-checked
+# against the documentation from Illumina dated 2011-10-11.
+# NOTE: index1-index27 are from the table "TruSeq RNA and DNA Sample Prep Kits".
+# NOTE: r1-r48 are from the table "TruSeq Small RNA Sample Prep Kits",
+#       after reverse-complement conversion.
 INDEX_LOOKUP = dict(index1='ATCACG',
                     index2='CGATGT',
                     index3='TTAGGC',
@@ -67,41 +72,75 @@ INDEX_LOOKUP = dict(index1='ATCACG',
                     index14='AGTTCC',
                     index15='ATGTCA',
                     index16='CCGTCC',
-                    index17='GTAGAG',
+                    # index17 is "reserved" by Illumina
                     index18='GTCCGC',
                     index19='GTGAAA',
                     index20='GTGGCC',
                     index21='GTTTCG',
                     index22='CGTACG',
                     index23='GAGTGG',
-                    index24='GGTAGC',
-                    index25='CTAGCT',
-                    index26='CTAGCT',
-                    index27='CTATAC',
-                    index28='CTCAGA',
-                    index29='CTGCTG',
-                    index30='TAATCG',
-                    index31='TACAGC',
-                    index32='TATAAT',
-                    index33='TCATTC',
-                    index34='TCCCGA',
-                    index35='TCGAAG',
-                    index36='TCGGCA',
-                    index37='GCCGCG',
-                    index38='GCCTTA',
-                    index39='GCTCCA',
-                    index40='GGCACA',
-                    index41='GGCCTG',
-                    index42='TCTACC',
-                    index43='TGAATG',
-                    index44='TGCCAT',
-                    index45='TGCTGG',
-                    index46='TGGCGC',
-                    index47='TTCGAA',
-                    index48='TTCTCC')
+                    # index24 is "reserved" by Illumina
+                    index25='ACTGAT',
+                    # index26 is "reserved" by Illumina
+                    index27='ATTCCT',
+                    # RPI indexes for "TruSeq Small RNA", 
+                    # These are reverse-complement of Illumina documentation
+                    rpi1='ATCACG',
+                    rpi2='CGATGT',
+                    rpi3='TTAGGC',
+                    rpi4='TGACCA',
+                    rpi5='ACAGTG',
+                    rpi6='GCCAAT',
+                    rpi7='CAGATC',
+                    rpi8='ACTTGA',
+                    rpi9='GATCAG',
+                    rpi10='TAGCTT',
+                    rpi11='GGCTAC',
+                    rpi12='CTTGTA',
+                    rpi13='AGTCAA',
+                    rpi14='AGTTCC',
+                    rpi15='ATGTCA',
+                    rpi16='CCGTCC',
+                    rpi17='GTAGAG',
+                    rpi18='GTCCGC',
+                    rpi19='GTGAAA',
+                    rpi20='GTGGCC',
+                    rpi21='GTTTCG',
+                    rpi22='CGTACG',
+                    rpi23='GAGTGG',
+                    rpi24='GGTAGC',
+                    rpi25='ACTGAT',
+                    rpi26='ATGAGC',
+                    rpi27='ATTCCT',
+                    rpi28='CAAAAG',
+                    rpi29='CAACTA',
+                    rpi30='CACCGG',
+                    rpi31='CACGAT',
+                    rpi32='CACTCA',
+                    rpi33='CAGGCG',
+                    rpi34='CATGGC',
+                    rpi35='CATTTT',
+                    rpi36='CAAACA',
+                    rpi37='CGGAAT',
+                    rpi38='CTAGCT',
+                    rpi39='CTATAC',
+                    rpi40='CTCAGA',
+                    rpi41='GACGAC',
+                    rpi42='TAATCG',
+                    rpi43='TACAGC',
+                    rpi44='TATAAT',
+                    rpi45='TCATTC',
+                    rpi46='TCCCGA',
+                    rpi47='TCGAAG',
+                    rpi48='TCGGCA')
+
 INDEX_LOOKUP.update(dict([(k.replace('index', ''), v)
                           for k,v in INDEX_LOOKUP.items()]))
 INDEX_LOOKUP.update(dict([(k.replace('index', 'idx'), v)
+                          for k,v in INDEX_LOOKUP.items()]))
+INDEX_LOOKUP.update(dict([(k.replace('index', 'in'), v)
+                          for k,v in INDEX_LOOKUP.items()]))
+INDEX_LOOKUP.update(dict([(k.replace('rpi', 'r'), v)
                           for k,v in INDEX_LOOKUP.items()]))
 INDEX_LOOKUP.update(dict([(k.upper(), v)
                           for k,v in INDEX_LOOKUP.items()]))
@@ -203,6 +242,18 @@ class Samplesheet(object):
         self.read()
         return self.tmpfilename
 
+def interpret_sampleid_for_index(sampleid, append_a=True):
+    try:                            # delimiter: white space
+        result = INDEX_LOOKUP[sampleid.split()[-1]]
+    except (KeyError, IndexError):
+        try:                        # delimiter: underscore
+            result = INDEX_LOOKUP[sampleid.split('_')[-1]]
+        except (KeyError, IndexError):
+            return ''
+    if result:
+        if append_a: result += 'A'
+    return result
+
 
 def home(request, response):
     sheets = [(os.path.getmtime(os.path.join(DATADIR, s)), s)
@@ -296,6 +347,8 @@ def view(request, response, xfer_msg=None):
                 warning.append('Sequence index already used in lane!')
             else:
                 seqindex_lookup.setdefault(record[1], set()).add(record[4])
+            if interpret_sampleid_for_index(record[2]) != record[4]:
+                warning.append('SampleID and Index sequence inconsistent!')
         else:
             warning.append('Missing sequence!')
         if warning:
@@ -425,6 +478,7 @@ def update(request, response):
     except KeyError:
         append_a = False
     complete = True
+
     # Modify existing records
     pos = -1                             # Define variable no matter what
     for pos, record in enumerate(samplesheet.records):
@@ -438,20 +492,11 @@ def update(request, response):
         try:
             index = get_default(request, "index%i" % pos)
             if not index: raise KeyError
-            # If SampleId is redefined, but not Index, then reinterpret
-            if sampleid != record[2] and index == record[4]:
-                raise KeyError
+            # If SampleId was changed, then reinterpret
+            if sampleid != record[2]: raise KeyError
         except KeyError:
-            logging.info("samplesheet: sampleid '%s'", sampleid)
-            try:
-                index = INDEX_LOOKUP[sampleid.split('_')[-1]]
-            except (KeyError, IndexError):
-                try:
-                    index = INDEX_LOOKUP[sampleid.split()[-1]]
-                except (KeyError, IndexError):
-                    index = ''
-            if index:
-                if append_a: index += 'A'
+            logging.debug("samplesheet: sampleid '%s'", sampleid)
+            index = interpret_sampleid_for_index(sampleid, append_a)
         record[2] = sampleid
         record[4] = index
         record[5] = get_default(request, "description%i" % pos)
@@ -483,15 +528,7 @@ def update(request, response):
             index = request.cgi_fields['index'].value.strip()
             if not index: raise KeyError
         except KeyError:
-            try:
-                index = INDEX_LOOKUP[record[2].split('_')[-1]]
-            except (KeyError, IndexError):
-                try:
-                    index = INDEX_LOOKUP[record[2].split()[-1]]
-                except (KeyError, IndexError):
-                    index = ''
-            if index:
-                if append_a: index += 'A'
+            index = interpret_sampleid_for_index(record[2], append_a)
         record.append(index)
         try:
             default = samplesheet.records[-1][5]
@@ -533,7 +570,7 @@ def update(request, response):
         msg = "The CSV file was saved, but transfer to comicbookguy failed"
         " (error code %s). Contact Per Kraulis or Roman Valls." % code
     view(request, response, xfer_msg=msg)
-    
+
 def delete(request, response):
     samplesheet = Samplesheet(request.path_named_values['fcid'])
     os.rename(samplesheet.filename,
