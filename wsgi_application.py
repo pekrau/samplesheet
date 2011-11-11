@@ -49,7 +49,14 @@ HEADER = ('FCID',
 
 # 'unknown' is hardwired
 SAMPLEREFS = ['hg19',
-              'hg18']
+              'hg18',
+              'phix',
+              'dm3',
+              'mm9',
+              'araTha_tair9',
+              'xenTro2',
+              'sacCer2',
+              'WS210']
 
 # These index number-to-sequence mappings have been double-checked
 # against the documentation from Illumina dated 2011-10-11.
