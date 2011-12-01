@@ -483,10 +483,10 @@ def view(request, response, xfer_msg=None):
         warning.append(P("There are problems regarding records %s!" %
                          ', '.join(problems)))
     warning = DIV(style='color: red;', *warning)
-    form = FORM(P(INPUT(type='submit', value='Save'),
-                  INPUT(type='checkbox', name='append_a',
-                        value='y', checked=append_a),
-                  " Append an 'A' to a newly defined index sequence."),
+    form = FORM(P(INPUT(type='submit', value='Save')),
+    ##               INPUT(type='checkbox', name='append_a',
+    ##                     value='y', checked=append_a),
+    ##               " Append an 'A' to a newly defined index sequence."),
                 P(table),
                 method='POST',
                 action=samplesheet.url)
