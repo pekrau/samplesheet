@@ -15,6 +15,7 @@ import csv
 import logging
 import socket
 import time
+import string
 import subprocess
 
 from HyperText.HTML40 import *
@@ -36,6 +37,9 @@ REMOTE_DIRPATH = '/home/hiseq.hiseq/samplesheets_illumina'
 DATADIR  = '/var/local/samplesheet'
 TRASHDIR = '/var/local/samplesheet/trash'
 TMPDIR   = '/var/local/samplesheet/tmp'
+
+# Some common punctuation chars are included.
+ASCII = set(string.ascii_letters + string.digits + '_-.,:/#')
 
 HEADER = ('FCID',
           'Lane',
@@ -237,7 +241,7 @@ class Samplesheet(object):
 
     def sort_write(self):
         """Sort and write the records to a temporary file.
-        The read in the unsorted records again.
+        Then read in the unsorted records again.
         """
         outfile = open(self.tmpfilename, 'w')
         self.sort()
@@ -249,14 +253,35 @@ class Samplesheet(object):
         self.read()
         return self.tmpfilename
 
-def interpret_sampleid_for_index(sampleid, append_a=True):
-    try:                            # delimiter: white space
-        result = INDEX_LOOKUP[sampleid.split()[-1]]
+def cleanup_sampleid(sampleid):
+    """Strip it, replace all whitespaces with underscore,
+    replace non-ASCII characters with underscore."""
+    sampleid = sampleid.strip()
+    sampleid = '_'.join(sampleid.split())
+    sampleid = sampleid.replace('\xc3\xa5', 'a')
+    sampleid = sampleid.replace('\xc3\xa4', 'a')
+    sampleid = sampleid.replace('\xc3\xb6', 'o')
+    sampleid = sampleid.replace('\xc3\x85', 'A')
+    sampleid = sampleid.replace('\xc3\x84', 'A')
+    sampleid = sampleid.replace('\xc3\x96', 'O')
+    chars = []
+    for c in sampleid:
+        if c in ASCII:
+            chars.append(c)
+        else:
+            chars.append('_')
+    return ''.join(chars)
+
+def interpret_sampleid_for_index(sampleid, append_a=False):
+    """Look for index number at end of samplid.
+    Also append that extra A if requested."""
+    # There is no longer any need to do the whitespace delimited
+    # case, since cleanup_sampleid replaces all whitespace by
+    # underscore before this is called.
+    try:
+        result = INDEX_LOOKUP[sampleid.split('_')[-1]]
     except (KeyError, IndexError):
-        try:                        # delimiter: underscore
-            result = INDEX_LOOKUP[sampleid.split('_')[-1]]
-        except (KeyError, IndexError):
-            return ''
+        return ''
     if result:
         if append_a: result += 'A'
     return result
@@ -324,6 +349,13 @@ def view(request, response, xfer_msg=None):
     rows = []
     seqindex_lengths = dict()
     seqindex_lookup = dict()            # Key: lane number, value: seq index
+    # Figure out whether that A has been appended previously
+    append_a = None
+    for record in samplesheet.records:
+        if append_a is None or append_a == True:
+            append_a = len(record[4]) > 6 and record[4][-1] == 'A'
+    if append_a is None:
+        append_a = False
     for pos, record in enumerate(samplesheet.records):
         lanes = []
         for i in xrange(1, 9):
@@ -344,7 +376,7 @@ def view(request, response, xfer_msg=None):
         else:
             samplerefs.insert(0, OPTION('unknown', selected=True))
         warning = []
-        if record[4]:
+        if record[4]:                   # Index sequence
             if set(record[4].upper()).difference(set('ATGC')):
                 warning.append('Invalid nucleotide sequence!')
             length = seqindex_lengths.setdefault(record[1], len(record[4]))
@@ -354,7 +386,7 @@ def view(request, response, xfer_msg=None):
                 warning.append('Sequence index already used in lane!')
             else:
                 seqindex_lookup.setdefault(record[1], set()).add(record[4])
-            if interpret_sampleid_for_index(record[2]) != record[4]:
+            if interpret_sampleid_for_index(record[2], append_a) != record[4]:
                 warning.append('SampleID and Index sequence inconsistent!')
         else:
             warning.append('Missing sequence!')
@@ -453,7 +485,7 @@ def view(request, response, xfer_msg=None):
     warning = DIV(style='color: red;', *warning)
     form = FORM(P(INPUT(type='submit', value='Save'),
                   INPUT(type='checkbox', name='append_a',
-                        value='y', checked=True),
+                        value='y', checked=append_a),
                   " Append an 'A' to a newly defined index sequence."),
                 P(table),
                 method='POST',
@@ -491,10 +523,10 @@ def update(request, response):
     for pos, record in enumerate(samplesheet.records):
         try:
             sampleid = request.cgi_fields["sampleid%i" % pos].value
+            sampleid = cleanup_sampleid(sampleid)
         except KeyError:
             continue
         record[1] = int(request.cgi_fields["lane%i" % pos].value)
-        sampleid = sampleid.strip()
         record[3] = get_default(request, "sampleref%i" % pos, default='unknown')
         try:
             index = get_default(request, "index%i" % pos)
@@ -515,6 +547,7 @@ def update(request, response):
     # Add a new record
     try:
         sampleid = request.cgi_fields['sampleid'].value.strip()
+        sampleid = cleanup_sampleid(sampleid)
         if not sampleid: raise KeyError
     except KeyError:
         pass
