@@ -2,17 +2,28 @@
 
 Apache WSGI interface using the 'wireframe' package.
 
-It has been decided to allow incomplete samplesheets to be transferred
-to comicbookguy. The complications involving numerous edge cases were simply
-too many. These related to:
-- Samplesheets that legitimately lack an index sequence.
-- What to do when a previously complete samplesheet becomes incomplete
-  when new records are added.
+The transfer of samplesheets to the remote machine (comicbookguy, CBG)
+has been changed. The 'push' model used previously, whereby this script
+used scp to transfer a newly modified file to CBG, has been scrapped.
+
+Currently, CBG has a rsync command in cron (user hiseq) which syncs
+the data directory on the web server with that on CBG.
+
+To allow for this, the directory structure of the samplesheet directory
+has been changed to agree with that used on CBG, i.e. yearly subdirectories.
+
+The reason for this change was that the ssh keys could not be made to
+work properly when the owner of the apache server was changed back to
+the default. We couldn't figure out why, and decided it wasn't worth
+the effort. Instead, the current solution was adopted.
+
+/Per Kraulis, 2012-02-06
 """
 
+import logging
 import os
 import csv
-import logging
+from cStringIO import StringIO
 import socket
 import time
 import string
@@ -31,12 +42,8 @@ elif hostname == 'maggie':              # Production machine
 else:
     raise NotImplementedError("host %s" % hostname)
 
-REMOTE_LOGIN = 'hiseq@cbg'
-REMOTE_DIRPATH = '/home/hiseq.hiseq/samplesheets_illumina'
-
-DATADIR  = '/var/local/samplesheet'
-TRASHDIR = '/var/local/samplesheet/trash'
-TMPDIR   = '/var/local/samplesheet/tmp'
+DATA_DIR  = '/var/local/samplesheet'
+TRASH_DIR = '/var/local/samplesheet/trash'
 
 # Some common punctuation chars are included.
 ASCII = set(string.ascii_letters + string.digits + '_-.,:/#')
@@ -160,6 +167,9 @@ INDEX_LOOKUP.update(dict([(k.upper(), v)
 logging.basicConfig(level=logging.INFO)
 
 
+def get_year():
+    return time.localtime()[0]
+
 def get_url(*parts):
     return '/'.join([URL_BASE] + list(parts))
 
@@ -179,7 +189,7 @@ class Samplesheet(object):
     def __init__(self, fcid):
         # Check input: length and sensible characters
         if len(fcid) !=  9:
-            raise HTTP_BAD_REQUEST('FCID must contain 9 characters')
+            raise HTTP_BAD_REQUEST('FCID must contain 9 characters: %s' % fcid)
         if not fcid.isalnum():
             raise HTTP_BAD_REQUEST('FCID must contain only alphanumerical characters')
         self.fcid = fcid.upper()
@@ -189,13 +199,19 @@ class Samplesheet(object):
     def __str__(self):
         return "Samplesheet %s" % self.fcid
 
-    @property
-    def filename(self):
-        return os.path.join(DATADIR, self.fcid +'.csv')
+    def __cmp__(self, other):
+        return cmp(self.mtime, other.mtime)
 
     @property
-    def tmpfilename(self):
-        return os.path.join(TMPDIR,  self.fcid +'.csv')
+    def filepath(self):
+        try:
+            return self._filepath
+        except AttributeError:
+            filename = self.fcid +'.csv'
+            for year in range(2011, get_year() + 1):
+                self._filepath = os.path.join(DATA_DIR, str(year), filename)
+                if os.path.exists(self._filepath): break
+            return self._filepath
 
     @property
     def url(self):
@@ -205,12 +221,25 @@ class Samplesheet(object):
     def file_url(self):
         return get_url(self.fcid + '.csv')
 
+    @property
+    def mtime(self):
+        try:
+            return self._mtime
+        except AttributeError:
+            if self.exists():
+                mtime = os.path.getmtime(self.filepath)
+                self._mtime = time.strftime("%Y-%m-%d %H:%M:%S",
+                                            time.localtime(mtime))
+            else:
+                self._mtime = None
+            return self._mtime
+
     def exists(self):
         if not self.fcid: return False
-        return os.path.exists(self.filename)
+        return os.path.exists(self.filepath)
 
     def get_content(self):
-        return open(self.filename).read()
+        return open(self.filepath).read()
 
     def create(self):
         self.header = HEADER[:]         # Proper list copy!
@@ -218,7 +247,7 @@ class Samplesheet(object):
 
     def read(self):
         try:
-            infile = open(self.filename, 'rU')
+            infile = open(self.filepath, 'rU')
         except OSError:
             raise HTTP_NOT_FOUND("no such %s" % self)
         reader = csv.reader(infile)
@@ -232,26 +261,15 @@ class Samplesheet(object):
 
     def write(self):
         "Save the records to file."
-        outfile = open(self.filename, 'wb')
+        dirpath = os.path.dirname(self.filepath)
+        if not os.path.exists(dirpath):
+            os.mkdir(dirpath)
+        outfile = open(self.filepath, 'wb')
         writer = csv.writer(outfile)
         writer = csv.writer(outfile, quoting=csv.QUOTE_NONNUMERIC)
         writer.writerow(self.header)
         writer.writerows(self.records)
         outfile.close()
-
-    def sort_write(self):
-        """Sort and write the records to a temporary file.
-        Then read in the unsorted records again.
-        """
-        outfile = open(self.tmpfilename, 'w')
-        self.sort()
-        writer = csv.writer(outfile)
-        writer = csv.writer(outfile, quoting=csv.QUOTE_NONNUMERIC)
-        writer.writerow(self.header)
-        writer.writerows(self.records)
-        outfile.close()
-        self.read()
-        return self.tmpfilename
 
 def cleanup_sampleid(sampleid):
     """Strip it, replace all whitespaces with underscore,
@@ -287,18 +305,26 @@ def interpret_sampleid_for_index(sampleid, append_a=False):
     return result
 
 
-def home(request, response):
-    sheets = [(os.path.getmtime(os.path.join(DATADIR, s)), s)
-              for s in os.listdir(DATADIR) if s.endswith('.csv')]
+def get_samplesheets():
+    "Return list of all samplesheets in reverse chronological order."
+    sheets = []
+    for year in range(2011, get_year() + 1):
+        dirpath = os.path.join(DATA_DIR, str(year))
+        if not os.path.exists(dirpath): continue
+        for filename in os.listdir(dirpath):
+            if not filename.endswith('.csv'): continue
+            fcid = os.path.splitext(os.path.basename(filename))[0]
+            sheets.append(Samplesheet(fcid))
     sheets.sort()
     sheets.reverse()
+    return sheets
+
+def home(request, response):
     rows = [TR(TH('Samplesheet'),
                TH('Modified'))]
-    for mtime, filename in sheets:
-        name = os.path.splitext(filename)[0]
-        rows.append(TR(TD(A(name, href=get_url(name))),
-                       TD(time.strftime("%Y-%m-%d %H:%M:%S",
-                                        time.localtime(mtime)))))
+    for sheet in get_samplesheets():
+        rows.append(TR(TD(A(sheet.fcid, href=sheet.url)),
+                       TD(sheet.mtime)))
     info = DIV('Follow the instructions in the Google document ',
                A('10249_01_To create a samplesheet for demultiplexing HiSeq runs',
                  href='https://docs.google.com/a/scilifelab.se/document/d/1tBABcyk-mUt4FosqunrmooRGA-IfgkmLxWe2aj0pnNc/edit'),
@@ -457,8 +483,8 @@ def view(request, response, xfer_msg=None):
                            ' to a blank character.'),
                         LI('To modify a record, change the value'
                            ' in the field.')),
-                     ' Clicking "Save" stores the samplesheet, and transfers'
-                     ' it automatically to Comicbookguy.')
+                     ' Clicking "Save" stores the samplesheet. It will be '
+                     ' automatically transferred to Comicbookguy.')
     ops = TABLE(TR(TD(FORM(INPUT(type='submit',
                                  value='Sort samplesheet records'),
                            INPUT(type='hidden', name='sort', value='default'),
@@ -510,7 +536,7 @@ def update(request, response):
         samplesheet.sort()
         samplesheet.write()
         view(request, response)
-        return                          # NOTE: This does not scp to CBG!
+        return
     try:
         append_a = request.cgi_fields['append_a'].value.strip().lower()
         append_a = append_a == 'y'
@@ -593,64 +619,40 @@ def update(request, response):
             record[1] = lanes.pop()
             samplesheet.records.append(record)
     samplesheet.write()                 # Proper save
-    source = samplesheet.sort_write()   # Sort and write to tmp, for xfer
-    destination = "%s:%s/%s" % (REMOTE_LOGIN,
-                                REMOTE_DIRPATH,
-                                time.strftime("%Y", time.localtime()))
-    try:
-        code = subprocess.check_call(['scp',
-                                      '-q',
-                                      source,
-                                      destination])
-    except subprocess.CalledProcessError, msg:
-        code = msg.returncode
-    if code == 0:
-        msg = None
-    else:
-        msg = "The CSV file was saved, but transfer to comicbookguy failed"
-        " (error code %s). Contact Per Kraulis or Roman Valls." % code
-    view(request, response, xfer_msg=msg)
+    view(request, response)
 
 def delete(request, response):
     samplesheet = Samplesheet(request.path_named_values['fcid'])
-    os.rename(samplesheet.filename,
-              os.path.join(TRASHDIR, samplesheet.fcid + '.csv'))
-    try:
-        # regexp must not include 'trash' directory
-        source = "%s/20*/%s.csv" % (REMOTE_DIRPATH, samplesheet.fcid)
-        destination = "%s/trash" % REMOTE_DIRPATH
-        code = subprocess.check_call(['ssh',
-                                      REMOTE_LOGIN,
-                                      "mv -f -t %s %s" % (destination, source)])
-    except subprocess.CalledProcessError, msg:
-        raise HTTP_INTERNAL_SERVER_ERROR("The CSV file was not properly deleted"
-                                         " from comicbookguy.\n"
-                                         "Contact Per Kraulis or Roman Valls!\n"
-                                         "%s" % msg)
+    os.rename(samplesheet.filepath,
+              os.path.join(TRASH_DIR, samplesheet.fcid + '.csv'))
     raise HTTP_SEE_OTHER(Location=get_url())
 
 def download(request, response):
-    samplesheet = Samplesheet(request.path_named_values['fcid'])
+    fcid = request.path_named_values['fcid']
+    if fcid == 'list':
+        outfile = StringIO()
+        writer = csv.writer(outfile)
+        writer = csv.writer(outfile, quoting=csv.QUOTE_NONNUMERIC)
+        for row in get_samplesheets():
+            writer.writerow(row)
+        content = outfile.getvalue()
+    else:
+        samplesheet = Samplesheet(fcid)
+        content = samplesheet.get_content()
     response['Content-Type'] = 'text/csv'
-    response['Content-Disposition'] = 'attachment; filename="%s.csv"' % samplesheet.fcid
-    response.append(samplesheet.get_content())
-
-def redirect_sheet(request, response):
-    url = get_url(request.path_named_values['fcid'])
-    raise HTTP_SEE_OTHER(Location=url)
-
-def redirect_file(request, response):
-    url = "%s.csv" % get_url(request.path_named_values['fcid'])
-    raise HTTP_SEE_OTHER(Location=url)
+    response['Content-Disposition'] = 'attachment; filename="%s.csv"' % fcid
+    response.append(content)
 
 
 application = wireframe.application.Application(human_debug_output=True)
 
-application.add_map(r'template:/?', GET=home, POST=create)
-# For obsolete URLs
-application.add_map('template:/sheet/{fcid}', GET=redirect_sheet)
-application.add_map('template:/file/{fcid}', GET=redirect_file)
-# Modern URLs
-application.add_map('template:/{fcid}.csv', GET=download)
+application.add_map(r'template:/?',
+                    GET=home,
+                    POST=create)
+# Must be specified before the next one, to catch the suffix.
+application.add_map('template:/{fcid}.csv',
+                    GET=download)
 application.add_map('template:/{fcid}',
-                    GET=view, POST=update, DELETE=delete)
+                    GET=view,
+                    POST=update,
+                    DELETE=delete)
