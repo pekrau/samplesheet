@@ -56,7 +56,8 @@ HEADER = ('FCID',
           'Description',
           'Control',
           'Recipe',
-          'Operator')
+          'Operator',
+          'SampleProject')
 
 # 'unknown' is hardwired
 SAMPLEREFS = ['hg19',
@@ -253,8 +254,12 @@ class Samplesheet(object):
         reader = csv.reader(infile)
         self.header = reader.next()
         self.records = [record for record in reader if len(record)] # Skip empty
-        for record in self.records:     # Convert lane to int
+        # Convert lane to int
+        # Upgrade to new samplesheet; additional column 'SampleProject'
+        for record in self.records:
             record[1] = int(record[1])
+            if len(record) < 10:
+                record.append('')
 
     def sort(self):
         self.records.sort(key=lambda r: (r[1], r[2]))
@@ -371,7 +376,8 @@ def view(request, response, xfer_msg=None):
                 TH('Description'),
                 TH('Control'),
                 TH('Recipe'),
-                TH('Operator'))
+                TH('Operator'),
+                TH('SampleProject'))
     rows = []
     seqindex_lengths = dict()
     seqindex_lookup = dict()            # Key: lane number, value: seq index
@@ -437,7 +443,9 @@ def view(request, response, xfer_msg=None):
                        TD(INPUT(type='text', name="recipe%i" % pos,
                                 value=record[7], size=4)),
                        TD(INPUT(type='text', name="operator%i" % pos,
-                                value=record[8], size=4))))
+                                value=record[8], size=4)),
+                       TD(INPUT(type='text', name="sampleproject%i" % pos,
+                                value=record[9], size=24))))
     try:
         previous_lane = samplesheet.records[-1][1]
         previous_sampleref = samplesheet.records[-1][3]
@@ -473,7 +481,8 @@ def view(request, response, xfer_msg=None):
                             name='control', value='N'), 'N ',
                       INPUT(type='radio', name='control', value='Y'), 'Y'),
                    TD(INPUT(type='text', name='recipe', size=4)),
-                   TD(INPUT(type='text', name='operator', size=4))))
+                   TD(INPUT(type='text', name='operator', size=4)),
+                   TD(INPUT(type='text', name='sampleproject', size=24))))
     rows.reverse()
     rows.insert(0, header)
     table = TABLE(border=1, *rows)
@@ -568,6 +577,7 @@ def update(request, response):
         record[6] = request.cgi_fields["control%i" % pos].value
         record[7] = get_default(request, "recipe%i" % pos)
         record[8] = get_default(request, "operator%i" % pos)
+        record[9] = get_default(request, "sampleproject%i" % pos)
     # Delete all records which have blank SampleID
     samplesheet.records = [r for r in samplesheet.records if r[2]]
     # Add a new record
@@ -612,6 +622,11 @@ def update(request, response):
         except IndexError:
             default = 'NN'
         record.append(get_default(request, 'operator', default=default))
+        try:
+            default = samplesheet.records[-1][9]
+        except IndexError:
+            default = ''
+        record.append(get_default(request, 'sampleproject', default=default))
         samplesheet.records.append(record)
         # Clone sample into other lanes
         while lanes:
