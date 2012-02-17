@@ -18,6 +18,11 @@ the default. We couldn't figure out why, and decided it wasn't worth
 the effort. Instead, the current solution was adopted.
 
 /Per Kraulis, 2012-02-06
+
+The data visible in column 'Description' is now also stored in 'SampleProject'.
+This is a stop-gap solution.
+
+/Per Kraulis 2012-02-17
 """
 
 import logging
@@ -252,14 +257,20 @@ class Samplesheet(object):
         except OSError:
             raise HTTP_NOT_FOUND("no such %s" % self)
         reader = csv.reader(infile)
-        self.header = reader.next()
+        reader.next()                   # Skip past header
+        self.header = HEADER[:]         # Use fresh header
         self.records = [record for record in reader if len(record)] # Skip empty
-        # Convert lane to int
-        # Upgrade to new samplesheet; additional column 'SampleProject'
+        # Various fixes to the CSV data
         for record in self.records:
+            # Convert lane to int
             record[1] = int(record[1])
+            # Upgrade to new samplesheet; additional column 'SampleProject'
             if len(record) < 10:
                 record.append('')
+            # If data is in 'SampleProject', then switch back to 'Description'
+            # for the interface; when saving, it will be switched back.
+            elif record[9]:
+                record[5], record[9] = record[9], record[5]
 
     def sort(self):
         self.records.sort(key=lambda r: (r[1], r[2]))
@@ -273,7 +284,10 @@ class Samplesheet(object):
         writer = csv.writer(outfile)
         writer = csv.writer(outfile, quoting=csv.QUOTE_NONNUMERIC)
         writer.writerow(self.header)
-        writer.writerows(self.records)
+        for record in self.records:
+            swapped = record[:]
+            swapped[5], swapped[9] = swapped[9], swapped[5]
+            writer.writerow(swapped)
         outfile.close()
 
 def cleanup_sampleid(sampleid):
@@ -376,8 +390,7 @@ def view(request, response, xfer_msg=None):
                 TH('Description'),
                 TH('Control'),
                 TH('Recipe'),
-                TH('Operator'),
-                TH('SampleProject'))
+                TH('Operator'))
     rows = []
     seqindex_lengths = dict()
     seqindex_lookup = dict()            # Key: lane number, value: seq index
@@ -443,9 +456,7 @@ def view(request, response, xfer_msg=None):
                        TD(INPUT(type='text', name="recipe%i" % pos,
                                 value=record[7], size=4)),
                        TD(INPUT(type='text', name="operator%i" % pos,
-                                value=record[8], size=4)),
-                       TD(INPUT(type='text', name="sampleproject%i" % pos,
-                                value=record[9], size=24))))
+                                value=record[8], size=4))))
     try:
         previous_lane = samplesheet.records[-1][1]
         previous_sampleref = samplesheet.records[-1][3]
@@ -481,8 +492,7 @@ def view(request, response, xfer_msg=None):
                             name='control', value='N'), 'N ',
                       INPUT(type='radio', name='control', value='Y'), 'Y'),
                    TD(INPUT(type='text', name='recipe', size=4)),
-                   TD(INPUT(type='text', name='operator', size=4)),
-                   TD(INPUT(type='text', name='sampleproject', size=24))))
+                   TD(INPUT(type='text', name='operator', size=4))))
     rows.reverse()
     rows.insert(0, header)
     table = TABLE(border=1, *rows)
@@ -492,8 +502,9 @@ def view(request, response, xfer_msg=None):
                            ' to a blank character.'),
                         LI('To modify a record, change the value'
                            ' in the field.')),
-                     ' Clicking "Save" stores the samplesheet. It will be '
-                     ' automatically transferred to Comicbookguy.')
+                     ' Clicking "Save" stores the samplesheet.'
+                     ' Comicbookguy will fetch it automatically'
+                     ' within one hour.')
     ops = TABLE(TR(TD(FORM(INPUT(type='submit',
                                  value='Sort samplesheet records'),
                            INPUT(type='hidden', name='sort', value='default'),
@@ -577,7 +588,6 @@ def update(request, response):
         record[6] = request.cgi_fields["control%i" % pos].value
         record[7] = get_default(request, "recipe%i" % pos)
         record[8] = get_default(request, "operator%i" % pos)
-        record[9] = get_default(request, "sampleproject%i" % pos)
     # Delete all records which have blank SampleID
     samplesheet.records = [r for r in samplesheet.records if r[2]]
     # Add a new record
