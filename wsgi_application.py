@@ -21,8 +21,10 @@ the effort. Instead, the current solution was adopted.
 
 The data visible in column 'Description' is now also stored in 'SampleProject'.
 This is a stop-gap solution.
-
 /Per Kraulis 2012-02-17
+
+Added cut-and-paste feature.
+/Per Kraulis 2012-02-28
 """
 
 import logging
@@ -70,7 +72,9 @@ SAMPLEREFS = ['hg19',
               'phix',
               'dm3',
               'mm9',
-              'araTha_tair9',
+              'rn4',
+              ## 'araTha_tair9',
+              'tair9',
               'xenTro2',
               'sacCer2',
               'WS210']
@@ -265,12 +269,13 @@ class Samplesheet(object):
             # Convert lane to int
             record[1] = int(record[1])
             # Upgrade to new samplesheet; additional column 'SampleProject'
+            # and copy over data from 'Description'.
             if len(record) < 10:
-                record.append('')
-            # If data is in 'SampleProject', then switch back to 'Description'
-            # for the interface; when saving, it will be switched back.
-            elif record[9]:
-                record[5], record[9] = record[9], record[5]
+                record.append(record[5])
+            # Copy over data to 'Description' from 'SampleProject'
+            # if not already done.
+            elif record[9] and not record[5]:
+                record[5] = record[9]
 
     def sort(self):
         self.records.sort(key=lambda r: (r[1], r[2]))
@@ -285,9 +290,10 @@ class Samplesheet(object):
         writer = csv.writer(outfile, quoting=csv.QUOTE_NONNUMERIC)
         writer.writerow(self.header)
         for record in self.records:
-            swapped = record[:]
-            swapped[5], swapped[9] = swapped[9], swapped[5]
-            writer.writerow(swapped)
+            # Copy over data to 'SampleProject' from 'Description' if not done.
+            if record[5] and not record[9]:
+                record[9] = record[5]
+            writer.writerow(record)
         outfile.close()
 
 def cleanup_sampleid(sampleid):
@@ -496,7 +502,10 @@ def view(request, response, xfer_msg=None):
     rows.reverse()
     rows.insert(0, header)
     table = TABLE(border=1, *rows)
-    instructions = P(UL(LI('To add another record,'
+    instructions = P(UL(LI('To add several records, cut-and-paste'
+                           ' from the Google Docs spreadsheet'
+                           ' into text box to the left.'),
+                        LI('To add another record,'
                            ' fill in values in the first row.'),
                         LI('To delete a record, set its SampleID'
                            ' to a blank character.'),
@@ -505,15 +514,21 @@ def view(request, response, xfer_msg=None):
                      ' Clicking "Save" stores the samplesheet.'
                      ' Comicbookguy will fetch it automatically'
                      ' within one hour.')
-    ops = TABLE(TR(TD(FORM(INPUT(type='submit',
+    ops = TABLE(TR(TD(FORM(I('Cut-and-paste 4 columns'
+                             ' (Lane, Sample, Project, Ref.genome).'),
+                           TEXTAREA(name='cutandpaste', cols=40, rows=4),
+                           INPUT(type='submit', value='Add'),
+                           method='POST',
+                           action=samplesheet.url))),
+                TR(TD(FORM(INPUT(type='submit',
                                  value='Sort samplesheet records'),
                            INPUT(type='hidden', name='sort', value='default'),
                            method='POST',
                            action=samplesheet.url))),
-                TR(TD(FORM(INPUT(type='submit',
-                                 value='Download CSV file (obsolete)'),
-                           method='GET',
-                           action=samplesheet.file_url))),
+                ## TR(TD(FORM(INPUT(type='submit',
+                ##                  value='Download CSV file (obsolete)'),
+                ##            method='GET',
+                ##            action=samplesheet.file_url))),
                 TR(TD(FORM(INPUT(type='submit',
                                  value='Delete this samplesheet',
                                  onclick="return confirm('Really delete?');"),
@@ -548,6 +563,8 @@ def view(request, response, xfer_msg=None):
 def update(request, response):
     samplesheet = Samplesheet(request.path_named_values['fcid'])
     samplesheet.read()
+
+    # Sort existing records
     try:
         request.cgi_fields['sort']
     except KeyError:
@@ -557,6 +574,63 @@ def update(request, response):
         samplesheet.write()
         view(request, response)
         return
+
+    # Cut-and-paste from Google Docs spreadsheet
+    try:
+        cutandpaste = request.cgi_fields['cutandpaste'].value
+        if not cutandpaste: raise KeyError
+    except KeyError:
+        pass
+    else:
+        reader = csv.reader(StringIO(cutandpaste), delimiter='\t')
+        rows = list(reader)
+        logging.debug("rows %s", rows)
+        # Skip first row if it looks like the header
+        if rows and rows[0][0].strip() == 'Lane':
+            rows = rows[1:]
+        last_lane = None
+        if samplesheet.records:
+            control = samplesheet.records[-1][6]
+            recipe = samplesheet.records[-1][7]
+            operator = samplesheet.records[-1][8]
+        else:
+            control = 'N'
+            recipe = 'R1'
+            operator = 'NN'
+        for row in rows:
+            if len(row) < 4: continue
+            record = [samplesheet.fcid]
+            lane = row[0].strip()
+            if not lane:
+                lane = last_lane or '1'
+            try:
+                lane = max(1, min(8, int(lane.split()[-1])))
+                record.append(lane) # 'Lane'
+            except ValueError:
+                continue
+            last_lane = str(lane)
+            sampleid = cleanup_sampleid(row[1])
+            if not sampleid: continue
+            record.append(sampleid)      # 'SampleID'
+            sampleref = row[3].strip()
+            if sampleref in SAMPLEREFS:
+                record.append(sampleref) # 'SampleRef'
+            else:
+                record.append('')
+            record.append(interpret_sampleid_for_index(sampleid)) # 'Index'
+            project = row[2].strip()
+            if not project: continue
+            record.append(project)       # 'Description'
+            record.append(control)       # 'Control'
+            record.append(recipe)        # 'Recipe'
+            record.append(operator)      # 'Operator'
+            record.append(project)       # 'SampleProject'
+            samplesheet.records.append(record)
+        samplesheet.write()
+        view(request, response)
+        return
+
+    # Flag for appending 'A' to index sequence
     try:
         append_a = request.cgi_fields['append_a'].value.strip().lower()
         append_a = append_a == 'y'
@@ -588,8 +662,10 @@ def update(request, response):
         record[6] = request.cgi_fields["control%i" % pos].value
         record[7] = get_default(request, "recipe%i" % pos)
         record[8] = get_default(request, "operator%i" % pos)
+
     # Delete all records which have blank SampleID
     samplesheet.records = [r for r in samplesheet.records if r[2]]
+
     # Add a new record
     try:
         sampleid = request.cgi_fields['sampleid'].value.strip()
