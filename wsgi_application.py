@@ -290,9 +290,8 @@ class Samplesheet(object):
         writer = csv.writer(outfile, quoting=csv.QUOTE_NONNUMERIC)
         writer.writerow(self.header)
         for record in self.records:
-            # Copy over data to 'SampleProject' from 'Description' if not done.
-            if record[5] and not record[9]:
-                record[9] = record[5]
+            # Copy over data to 'SampleProject' from 'Description'.
+            record[9] = record[5]
             writer.writerow(record)
         outfile.close()
 
@@ -513,7 +512,7 @@ def view(request, response, xfer_msg=None):
                            ' in the field.')),
                      ' Clicking "Save" stores the samplesheet.'
                      ' Comicbookguy will fetch it automatically'
-                     ' within one hour.')
+                     ' within 15 minutes.')
     ops = TABLE(TR(TD(FORM(I('Cut-and-paste 4 columns'
                              ' (Lane, Sample, Project, Ref.genome).'),
                            TEXTAREA(name='cutandpaste', cols=40, rows=4),
