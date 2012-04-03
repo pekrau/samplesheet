@@ -66,8 +66,8 @@ HEADER = ('FCID',
           'Operator',
           'SampleProject')
 
-# 'unknown' is hardwired
-SAMPLEREFS = ['hg19',
+SAMPLEREFS = ['unknown',
+              'hg19',                   # item number 2 (index 1) is default
               'hg18',
               'phix',
               'dm3',
@@ -84,6 +84,9 @@ SAMPLEREFS = ['hg19',
 # NOTE: index1-index27 are from the table "TruSeq RNA and DNA Sample Prep Kits".
 # NOTE: r1-r48 are from the table "TruSeq Small RNA Sample Prep Kits",
 #       after reverse-complement conversion.
+# NOTE: a1-a96 are from the Google Docs spreadsheet "illumina 96 barcodes plate
+#       format_column arrangement" by Joel Gruselius. It specifies the Agilent
+#       indexes.
 INDEX_LOOKUP = dict(index1='ATCACG',
                     index2='CGATGT',
                     index3='TTAGGC',
@@ -160,7 +163,103 @@ INDEX_LOOKUP = dict(index1='ATCACG',
                     rpi45='TCATTC',
                     rpi46='TCCCGA',
                     rpi47='TCGAAG',
-                    rpi48='TCGGCA')
+                    rpi48='TCGGCA',
+                    agilent1='ATCACG',
+                    agilent2='CGATGT',
+                    agilent3='TTAGGC',
+                    agilent4='TGACCA',
+                    agilent5='ACAGTG',
+                    agilent6='GCCAAT',
+                    agilent7='CAGATC',
+                    agilent8='ACTTGA',
+                    agilent9='GATCAG',
+                    agilent10='TAGCTT',
+                    agilent11='GGCTAC',
+                    agilent12='CTTGTA',
+                    agilent13='AAACAT',
+                    agilent14='CAAAAG',
+                    agilent15='GAAACC',
+                    agilent16='TAATCG',
+                    agilent17='AAAGCA',
+                    agilent18='CAACTA',
+                    agilent19='GAATAA',
+                    agilent20='TACAGC',
+                    agilent21='AAATGC',
+                    agilent22='CACCGG',
+                    agilent23='GACGGA',
+                    agilent24='AGGCCG',
+                    agilent25='AACAAA',
+                    agilent26='CACGAT',
+                    agilent27='GATATA',
+                    agilent28='TATAAT',
+                    agilent29='AACCCC',
+                    agilent30='CACTCA',
+                    agilent31='GATGCT',
+                    agilent32='TCATTC',
+                    agilent33='AACTTG',
+                    agilent34='CAGGCG',
+                    agilent35='GCAAGG',
+                    agilent36='ATAATT',
+                    agilent37='AAGACT',
+                    agilent38='CATGGC',
+                    agilent39='GCACTT',
+                    agilent40='TCCCGA',
+                    agilent41='AAGCGA',
+                    agilent42='CATTTT',
+                    agilent43='GCCGCG',
+                    agilent44='TCGAAG',
+                    agilent45='AAGGAC',
+                    agilent46='CCAACA',
+                    agilent47='GCCTTA',
+                    agilent48='ATACGG',
+                    agilent49='AATAGG',
+                    agilent50='CCACGC',
+                    agilent51='GCTCCA',
+                    agilent52='TCGGCA',
+                    agilent53='ACAAAC',
+                    agilent54='CCCATG',
+                    agilent55='GGCACA',
+                    agilent56='TCTACC',
+                    agilent57='ACATCT',
+                    agilent58='CCCCCT',
+                    agilent59='GGCCTG',
+                    agilent60='ATCCTA',
+                    agilent61='ACCCAG',
+                    agilent62='CCGCAA',
+                    agilent63='GTAGAG',
+                    agilent64='TGAATG',
+                    agilent65='ACCGGC',
+                    agilent66='CCTTAG',
+                    agilent67='GTCCGC',
+                    agilent68='TGCCAT',
+                    agilent69='ACGATA',
+                    agilent70='CGAGAA',
+                    agilent71='GTGAAA',
+                    agilent72='ATCTAT',
+                    agilent73='ACTCTC',
+                    agilent74='CGGAAT',
+                    agilent75='GTGGCC',
+                    agilent76='TGCTGG',
+                    agilent77='ACTGAT',
+                    agilent78='CTAGCT',
+                    agilent79='GTTTCG',
+                    agilent80='TGGCGC',
+                    agilent81='AGAAGA',
+                    agilent82='CTATAC',
+                    agilent83='CGTACG',
+                    agilent84='ATGAGC',
+                    agilent85='AGATAG',
+                    agilent86='CTCAGA',
+                    agilent87='GAGTGG',
+                    agilent88='TTCGAA',
+                    agilent89='AGCATC',
+                    agilent90='CTGCTG',
+                    agilent91='GGTAGC',
+                    agilent92='TTCTCC',
+                    agilent93='AGCGCT',
+                    agilent94='CCGTCC',
+                    agilent95='ATTCCT',
+                    agilent96='AGGTTT')
 
 INDEX_LOOKUP.update(dict([(k.replace('index', ''), v)
                           for k,v in INDEX_LOOKUP.items()]))
@@ -169,6 +268,8 @@ INDEX_LOOKUP.update(dict([(k.replace('index', 'idx'), v)
 INDEX_LOOKUP.update(dict([(k.replace('index', 'in'), v)
                           for k,v in INDEX_LOOKUP.items()]))
 INDEX_LOOKUP.update(dict([(k.replace('rpi', 'r'), v)
+                          for k,v in INDEX_LOOKUP.items()]))
+INDEX_LOOKUP.update(dict([(k.replace('agilent', 'a'), v)
                           for k,v in INDEX_LOOKUP.items()]))
 INDEX_LOOKUP.update(dict([(k.upper(), v)
                           for k,v in INDEX_LOOKUP.items()]))
@@ -413,18 +514,17 @@ def view(request, response, xfer_msg=None):
                 lanes.append(OPTION(str(i), selected=True))
             else:
                 lanes.append(OPTION(str(i)))
+        for found in SAMPLEREFS:
+            if found == record[3]:
+                break
+        else:
+            found = SAMPLEREFS[1]       # Yes! Item number 2 (index 1)
         samplerefs = []
-        found = False
         for sr in SAMPLEREFS:
-            if sr == record[3]:
+            if sr == found:
                 samplerefs.append(OPTION(sr, selected=True))
-                found = True
             else:
                 samplerefs.append(OPTION(sr))
-        if found:
-            samplerefs.insert(0, OPTION('unknown'))
-        else:
-            samplerefs.insert(0, OPTION('unknown', selected=True))
         warning = []
         if record[4]:                   # Index sequence
             if set(record[4].upper()).difference(set('ATGC')):
@@ -475,17 +575,16 @@ def view(request, response, xfer_msg=None):
         else:
             lanes.append(OPTION(str(i)))
         samplerefs = []
-        found = False
+        for found in SAMPLEREFS:
+            if found == previous_sampleref:
+                break
+        else:
+            found = SAMPLEREFS[1]       # Yes! Item number 2 (index 1)
         for sr in SAMPLEREFS:
-            if sr == previous_sampleref:
+            if sr == found:
                 samplerefs.append(OPTION(sr, selected=True))
-                found = True
             else:
                 samplerefs.append(OPTION(sr))
-        if found:
-            samplerefs.insert(0, OPTION('unknown'))
-        else:
-            samplerefs.insert(0, OPTION('unknown', selected=True))
     rows.append(TR(TD(str(len(samplesheet.records)+1)),
                    TD(samplesheet.fcid),
                    TD(SELECT(name='lane', multiple=True, *lanes)),
