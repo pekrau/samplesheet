@@ -66,18 +66,32 @@ HEADER = ('FCID',
           'Operator',
           'SampleProject')
 
-SAMPLEREFS = ['unknown',
-              'hg19',                   # item number 2 (index 1) is default
-              'hg18',
-              'phix',
-              'dm3',
-              'mm9',
-              'rn4',
+## SAMPLEREFS = ['unknown',
+##               'hg19',                   # item number 2 (index 1) is default
+##               'hg18',
+##               'phix',
+##               'dm3',
+##               'mm9',
+##               'rn4',
+##               ## 'araTha_tair9',
+##               'tair9',
+##               'xenTro2',
+##               'sacCer2',
+##               'WS210']
+SAMPLEREFS = [dict(value='unknown'),
+              # item number 2 (index 1) is default
+              dict(value='hg19', label='human'),
+              dict(value='hg18', label='human'),
+              dict(value='phix', label='bacteriophage'),
+              dict(value='dm3', label='drosophila'),
+              dict(value='mm9', label='mouse'),
+              dict(value='rn4', label='rat'),
               ## 'araTha_tair9',
-              'tair9',
-              'xenTro2',
-              'sacCer2',
-              'WS210']
+              dict(value='tair9', label='arabidopsis'),
+              dict(value='xenTro2', label='xenopus'),
+              dict(value='sacCer2', label='yeast'),
+              dict(value='WS210', label='worm')]
+SAMPLEREFS_SET = set([s['value'] for s in SAMPLEREFS])
 
 # These index number-to-sequence mappings have been double-checked
 # against the documentation from Illumina dated 2011-10-11.
@@ -266,6 +280,8 @@ INDEX_LOOKUP.update(dict([(k.replace('index', ''), v)
 INDEX_LOOKUP.update(dict([(k.replace('index', 'idx'), v)
                           for k,v in INDEX_LOOKUP.items()]))
 INDEX_LOOKUP.update(dict([(k.replace('index', 'in'), v)
+                          for k,v in INDEX_LOOKUP.items()]))
+INDEX_LOOKUP.update(dict([(k.replace('index', 'i'), v)
                           for k,v in INDEX_LOOKUP.items()]))
 INDEX_LOOKUP.update(dict([(k.replace('rpi', 'r'), v)
                           for k,v in INDEX_LOOKUP.items()]))
@@ -518,17 +534,18 @@ def view(request, response, xfer_msg=None):
                 lanes.append(OPTION(str(i), selected=True))
             else:
                 lanes.append(OPTION(str(i)))
-        for found in SAMPLEREFS:
-            if found == record[3]:
-                break
-        else:
-            found = SAMPLEREFS[1]       # Yes! Item number 2 (index 1)
-        samplerefs = []
-        for sr in SAMPLEREFS:
-            if sr == found:
-                samplerefs.append(OPTION(sr, selected=True))
-            else:
-                samplerefs.append(OPTION(sr))
+        ## for found in SAMPLEREFS:
+        ##     if found == record[3]:
+        ##         break
+        ## else:
+        ##     found = SAMPLEREFS[1]       # Yes! Item number 2 (index 1)
+        ## samplerefs = []
+        ## for sr in SAMPLEREFS:
+        ##     if sr == found:
+        ##         samplerefs.append(OPTION(sr, selected=True))
+        ##     else:
+        ##         samplerefs.append(OPTION(sr))
+        samplerefs = _get_sampleref_options(record[3])
         warning = []
         if record[4]:                   # Index sequence
             if set(record[4].upper()).difference(set('ATGC')):
@@ -578,17 +595,18 @@ def view(request, response, xfer_msg=None):
             lanes.append(OPTION(str(i), selected=True))
         else:
             lanes.append(OPTION(str(i)))
-        samplerefs = []
-        for found in SAMPLEREFS:
-            if found == previous_sampleref:
-                break
-        else:
-            found = SAMPLEREFS[1]       # Yes! Item number 2 (index 1)
-        for sr in SAMPLEREFS:
-            if sr == found:
-                samplerefs.append(OPTION(sr, selected=True))
-            else:
-                samplerefs.append(OPTION(sr))
+        ## samplerefs = []
+        ## for found in SAMPLEREFS:
+        ##     if found == previous_sampleref:
+        ##         break
+        ## else:
+        ##     found = SAMPLEREFS[1]       # Yes! Item number 2 (index 1)
+        ## for sr in SAMPLEREFS:
+        ##     if sr == found:
+        ##         samplerefs.append(OPTION(sr, selected=True))
+        ##     else:
+        ##         samplerefs.append(OPTION(sr))
+        samplerefs = _get_sampleref_options(previous_sampleref)
     rows.append(TR(TD(str(len(samplesheet.records)+1)),
                    TD(samplesheet.fcid),
                    TD(SELECT(name='lane', multiple=True, *lanes)),
@@ -606,14 +624,21 @@ def view(request, response, xfer_msg=None):
     table = TABLE(border=1, *rows)
     instructions = P(UL(LI('To add several records, cut-and-paste'
                            ' from the Google Docs spreadsheet'
-                           ' into text box to the left.'),
+                           ' into the text box to the right.'),
                         LI('To add another record,'
                            ' fill in values in the first row.'),
                         LI('To delete a record, set its SampleID'
                            ' to a blank character.'),
                         LI('To modify a record, change the value'
-                           ' in the field.')),
-                     ' Clicking "Save" stores the samplesheet.'
+                           ' in the field.'),
+                        LI('Specify index number for the sample like so:'),
+                        DL(DT('Ordinay Illumina indexes:'),
+                           DD("'samplename_index3', or 'samplename_3'"),
+                           DT('Small RNA indexes:'),
+                           DD("'samplename_rpi6', or 'samplename_r6'"),
+                           DT('Agilent indexes:'),
+                           DD("'samplename_agilent14', or 'samplename_a14'"))),
+                     ' Click "Save" to store the samplesheet.'
                      ' Comicbookguy will fetch it automatically'
                      ' within 15 minutes.')
     ops = TABLE(TR(TD(FORM(I('Cut-and-paste 4 columns'
@@ -715,7 +740,7 @@ def update(request, response):
             if not sampleid: continue
             record.append(sampleid)      # 'SampleID'
             sampleref = row[3].strip()
-            if sampleref in SAMPLEREFS:
+            if sampleref in SAMPLEREFS_SET:
                 record.append(sampleref) # 'SampleRef'
             else:
                 record.append('')
@@ -824,11 +849,35 @@ def update(request, response):
     samplesheet.write()                 # Proper save
     view(request, response)
 
+
+def _get_sampleref_options(selected):
+    "Get the list of OPTION elements."
+    for found in SAMPLEREFS:
+        if found['value'] == selected:
+            break
+    else:
+        found = SAMPLEREFS[1]           # Yes! Item number 2 (index 1)
+    options = []
+    for sampleref in SAMPLEREFS:
+        try:
+            label = "%s (%s)" % (sampleref['value'], sampleref['label'])
+        except KeyError:
+            label = sampleref['value']
+        if sampleref == found:
+            options.append(OPTION(label,
+                                  value=sampleref['value'],
+                                  selected=True))
+        else:
+            options.append(OPTION(label, value=sampleref['value']))
+    return options
+
+
 def delete(request, response):
     samplesheet = Samplesheet(request.path_named_values['fcid'])
     os.rename(samplesheet.filepath,
               os.path.join(TRASH_DIR, samplesheet.fcid + '.csv'))
     raise HTTP_SEE_OTHER(Location=get_url())
+
 
 def download(request, response):
     fcid = request.path_named_values['fcid']
