@@ -632,7 +632,7 @@ def view(request, response, xfer_msg=None):
                         LI('To modify a record, change the value'
                            ' in the field.'),
                         LI('Specify index number for the sample like so:'),
-                        DL(DT('Ordinay Illumina indexes:'),
+                        DL(DT('Ordinary Illumina indexes:'),
                            DD("'samplename_index3', or 'samplename_3'"),
                            DT('Small RNA indexes:'),
                            DD("'samplename_rpi6', or 'samplename_r6'"),
