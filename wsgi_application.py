@@ -101,7 +101,9 @@ SAMPLEREFS_SET = set([s['value'] for s in SAMPLEREFS])
 # NOTE: a1-a96 are from the Google Docs spreadsheet "illumina 96 barcodes plate
 #       format_column arrangement" by Joel Gruselius. It specifies the Agilent
 #       indexes.
-INDEX_LOOKUP = dict(index1='ATCACG',
+# NOTE: m1-m16 are from the PDF "User Guide for ovation SP Ultralow
+#       Library Ssytem" a.k.a. Mondrian system.
+BASIC_LOOKUP = dict(index1='ATCACG',
                     index2='CGATGT',
                     index3='TTAGGC',
                     index4='TGACCA',
@@ -291,26 +293,28 @@ INDEX_LOOKUP = dict(index1='ATCACG',
                     mondrian15='GTGGCC',
                     mondrian16='TGTTGC')
 
+INDEX_LOOKUP = BASIC_LOOKUP.copy()
+
 INDEX_LOOKUP.update(dict([(k.replace('index', ''), v)
-                          for k,v in INDEX_LOOKUP.items()]))
+                          for k,v in BASIC_LOOKUP.items()]))
 INDEX_LOOKUP.update(dict([(k.replace('index', 'idx'), v)
-                          for k,v in INDEX_LOOKUP.items()]))
+                          for k,v in BASIC_LOOKUP.items()]))
 INDEX_LOOKUP.update(dict([(k.replace('index', 'in'), v)
-                          for k,v in INDEX_LOOKUP.items()]))
+                          for k,v in BASIC_LOOKUP.items()]))
 INDEX_LOOKUP.update(dict([(k.replace('index', 'i'), v)
-                          for k,v in INDEX_LOOKUP.items()]))
+                          for k,v in BASIC_LOOKUP.items()]))
 INDEX_LOOKUP.update(dict([(k.replace('rpi', 'r'), v)
-                          for k,v in INDEX_LOOKUP.items()]))
+                          for k,v in BASIC_LOOKUP.items()]))
 INDEX_LOOKUP.update(dict([(k.replace('rpi', 'indexr'), v)
-                          for k,v in INDEX_LOOKUP.items()]))
+                          for k,v in BASIC_LOOKUP.items()]))
 INDEX_LOOKUP.update(dict([(k.replace('agilent', 'a'), v)
-                          for k,v in INDEX_LOOKUP.items()]))
+                          for k,v in BASIC_LOOKUP.items()]))
 INDEX_LOOKUP.update(dict([(k.replace('agilent', 'indexa'), v)
-                          for k,v in INDEX_LOOKUP.items()]))
+                          for k,v in BASIC_LOOKUP.items()]))
 INDEX_LOOKUP.update(dict([(k.replace('mondrian', 'm'), v)
-                          for k,v in INDEX_LOOKUP.items()]))
+                          for k,v in BASIC_LOOKUP.items()]))
 INDEX_LOOKUP.update(dict([(k.replace('mondrian', 'indexm'), v)
-                          for k,v in INDEX_LOOKUP.items()]))
+                          for k,v in BASIC_LOOKUP.items()]))
 INDEX_LOOKUP.update(dict([(k.upper(), v)
                           for k,v in INDEX_LOOKUP.items()]))
 
