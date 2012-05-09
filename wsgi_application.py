@@ -273,7 +273,23 @@ INDEX_LOOKUP = dict(index1='ATCACG',
                     agilent93='AGCGCT',
                     agilent94='CCGTCC',
                     agilent95='ATTCCT',
-                    agilent96='AGGTTT')
+                    agilent96='AGGTTT',
+                    mondrian1='AAGGGA',
+                    mondrian2='CCTTCA',
+                    mondrian3='GGACCC',
+                    mondrian4='TTCAGC',
+                    mondrian5='AAGACG',
+                    mondrian6='CCTCGG',
+                    mondrian7='GGATGT',
+                    mondrian8='TTCGCT',
+                    mondrian9='ACACGA',
+                    mondrian10='CACACA',
+                    mondrian11='GTGTTA',
+                    mondrian12='TGTGAA',
+                    mondrian13='ACAAAC',
+                    mondrian14='CACCTC',
+                    mondrian15='GTGGCC',
+                    mondrian16='TGTTGC')
 
 INDEX_LOOKUP.update(dict([(k.replace('index', ''), v)
                           for k,v in INDEX_LOOKUP.items()]))
@@ -290,6 +306,10 @@ INDEX_LOOKUP.update(dict([(k.replace('rpi', 'indexr'), v)
 INDEX_LOOKUP.update(dict([(k.replace('agilent', 'a'), v)
                           for k,v in INDEX_LOOKUP.items()]))
 INDEX_LOOKUP.update(dict([(k.replace('agilent', 'indexa'), v)
+                          for k,v in INDEX_LOOKUP.items()]))
+INDEX_LOOKUP.update(dict([(k.replace('mondrian', 'm'), v)
+                          for k,v in INDEX_LOOKUP.items()]))
+INDEX_LOOKUP.update(dict([(k.replace('mondrian', 'indexm'), v)
                           for k,v in INDEX_LOOKUP.items()]))
 INDEX_LOOKUP.update(dict([(k.upper(), v)
                           for k,v in INDEX_LOOKUP.items()]))
@@ -637,7 +657,9 @@ def view(request, response, xfer_msg=None):
                            DT('Small RNA indexes:'),
                            DD("'samplename_rpi6', or 'samplename_r6'"),
                            DT('Agilent indexes:'),
-                           DD("'samplename_agilent14', or 'samplename_a14'"))),
+                           DD("'samplename_agilent14', or 'samplename_a14'"),
+                           DT('Mondrian indexes:'),
+                           DD("'samplename_mondrian11', or 'samplename_m11'"))),
                      ' Click "Save" to store the samplesheet.'
                      ' Comicbookguy will fetch it automatically'
                      ' within 15 minutes.')
