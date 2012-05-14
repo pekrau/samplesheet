@@ -25,6 +25,9 @@ This is a stop-gap solution.
 
 Added cut-and-paste feature.
 /Per Kraulis 2012-02-28
+
+Apply strict character control on sample name and project name, for CASAVA.
+/Per Kraulis 2012-05-10
 """
 
 import logging
@@ -52,8 +55,8 @@ else:
 DATA_DIR  = '/var/local/samplesheet'
 TRASH_DIR = '/var/local/samplesheet/trash'
 
-# Some common punctuation chars are included.
-ASCII = set(string.ascii_letters + string.digits + '_-.,:/#')
+# Strict set of allowed characters, to match CASAVA requirements
+ALLOWED_CHARS = set(string.ascii_letters + string.digits + '_-')
 
 HEADER = ('FCID',
           'Lane',
@@ -66,18 +69,6 @@ HEADER = ('FCID',
           'Operator',
           'SampleProject')
 
-## SAMPLEREFS = ['unknown',
-##               'hg19',                   # item number 2 (index 1) is default
-##               'hg18',
-##               'phix',
-##               'dm3',
-##               'mm9',
-##               'rn4',
-##               ## 'araTha_tair9',
-##               'tair9',
-##               'xenTro2',
-##               'sacCer2',
-##               'WS210']
 SAMPLEREFS = [dict(value='unknown'),
               # item number 2 (index 1) is default
               dict(value='hg19', label='human'),
@@ -432,7 +423,7 @@ class Samplesheet(object):
             os.mkdir(dirpath)
         outfile = open(self.filepath, 'wb')
         writer = csv.writer(outfile)
-        writer = csv.writer(outfile, quoting=csv.QUOTE_NONNUMERIC)
+        writer = csv.writer(outfile, quoting=csv.QUOTE_MINIMAL)
         writer.writerow(self.header)
         for record in self.records:
             # Copy over data to 'SampleProject' from 'Description'.
@@ -440,20 +431,21 @@ class Samplesheet(object):
             writer.writerow(record)
         outfile.close()
 
-def cleanup_sampleid(sampleid):
+def cleanup_identifier(identifier):
     """Strip it, replace all whitespaces with underscore,
-    replace non-ASCII characters with underscore."""
-    sampleid = sampleid.strip()
-    sampleid = '_'.join(sampleid.split())
-    sampleid = sampleid.replace('\xc3\xa5', 'a')
-    sampleid = sampleid.replace('\xc3\xa4', 'a')
-    sampleid = sampleid.replace('\xc3\xb6', 'o')
-    sampleid = sampleid.replace('\xc3\x85', 'A')
-    sampleid = sampleid.replace('\xc3\x84', 'A')
-    sampleid = sampleid.replace('\xc3\x96', 'O')
+    replace disallowed characters with underscore."""
+    identifier = identifier.strip()
+    identifier = identifier.replace('.', '__')
+    identifier = '_'.join(identifier.split())
+    identifier = identifier.replace('\xc3\xa5', 'a')
+    identifier = identifier.replace('\xc3\xa4', 'a')
+    identifier = identifier.replace('\xc3\xb6', 'o')
+    identifier = identifier.replace('\xc3\x85', 'A')
+    identifier = identifier.replace('\xc3\x84', 'A')
+    identifier = identifier.replace('\xc3\x96', 'O')
     chars = []
-    for c in sampleid:
-        if c in ASCII:
+    for c in identifier:
+        if c in ALLOWED_CHARS:
             chars.append(c)
         else:
             chars.append('_')
@@ -462,9 +454,6 @@ def cleanup_sampleid(sampleid):
 def interpret_sampleid_for_index(sampleid, append_a=False):
     """Look for index number at end of samplid.
     Also append that extra A if requested."""
-    # There is no longer any need to do the whitespace delimited
-    # case, since cleanup_sampleid replaces all whitespace by
-    # underscore before this is called.
     try:
         result = INDEX_LOOKUP[sampleid.split('_')[-1]]
     except (KeyError, IndexError):
@@ -558,17 +547,6 @@ def view(request, response, xfer_msg=None):
                 lanes.append(OPTION(str(i), selected=True))
             else:
                 lanes.append(OPTION(str(i)))
-        ## for found in SAMPLEREFS:
-        ##     if found == record[3]:
-        ##         break
-        ## else:
-        ##     found = SAMPLEREFS[1]       # Yes! Item number 2 (index 1)
-        ## samplerefs = []
-        ## for sr in SAMPLEREFS:
-        ##     if sr == found:
-        ##         samplerefs.append(OPTION(sr, selected=True))
-        ##     else:
-        ##         samplerefs.append(OPTION(sr))
         samplerefs = _get_sampleref_options(record[3])
         warning = []
         if record[4]:                   # Index sequence
@@ -588,6 +566,10 @@ def view(request, response, xfer_msg=None):
         if warning:
             problems.append(str(pos+1))
         warning = B(' '.join(warning), style='color: red;')
+        # The hated dot '.' in project identifiers is stored as double
+        # underscore, since CASAVA cannot handle dot.
+        # For display purposes, the dot is shown instead of double underscore.
+        description = record[5].replace('__', '.')
         rows.append(TR(TD(str(pos+1)),
                        TD(record[0]),
                        TD(SELECT(name="lane%i" % pos, *lanes)),
@@ -598,7 +580,7 @@ def view(request, response, xfer_msg=None):
                                 value=record[4], size=10),
                           warning),
                        TD(INPUT(type='text', name="description%i" % pos,
-                                value=record[5], size=24)),
+                                value=description, size=24)),
                        TD(INPUT(type='radio', name="control%i" % pos,
                                 value='N', checked=record[6]=='N'), 'N ',
                           INPUT(type='radio', name="control%i" % pos,
@@ -619,17 +601,6 @@ def view(request, response, xfer_msg=None):
             lanes.append(OPTION(str(i), selected=True))
         else:
             lanes.append(OPTION(str(i)))
-        ## samplerefs = []
-        ## for found in SAMPLEREFS:
-        ##     if found == previous_sampleref:
-        ##         break
-        ## else:
-        ##     found = SAMPLEREFS[1]       # Yes! Item number 2 (index 1)
-        ## for sr in SAMPLEREFS:
-        ##     if sr == found:
-        ##         samplerefs.append(OPTION(sr, selected=True))
-        ##     else:
-        ##         samplerefs.append(OPTION(sr))
         samplerefs = _get_sampleref_options(previous_sampleref)
     rows.append(TR(TD(str(len(samplesheet.records)+1)),
                    TD(samplesheet.fcid),
@@ -655,6 +626,9 @@ def view(request, response, xfer_msg=None):
                            ' to a blank character.'),
                         LI('To modify a record, change the value'
                            ' in the field.'),
+                        LI('NOTE: Sample and project identifiers are now'
+                           ' strictly controlled: Offensive characters are'
+                           ' automatically converted to underscores.'),
                         LI('Specify index number for the sample like so:'),
                         DL(DT('Ordinary Illumina indexes:'),
                            DD("'samplename_index3', or 'samplename_3'"),
@@ -737,7 +711,6 @@ def update(request, response):
     else:
         reader = csv.reader(StringIO(cutandpaste), delimiter='\t')
         rows = list(reader)
-        logging.debug("rows %s", rows)
         # Skip first row if it looks like the header
         if rows and rows[0][0].strip() == 'Lane':
             rows = rows[1:]
@@ -762,7 +735,7 @@ def update(request, response):
             except ValueError:
                 continue
             last_lane = str(lane)
-            sampleid = cleanup_sampleid(row[1])
+            sampleid = cleanup_identifier(row[1])
             if not sampleid: continue
             record.append(sampleid)      # 'SampleID'
             sampleref = row[3].strip()
@@ -771,7 +744,7 @@ def update(request, response):
             else:
                 record.append('')
             record.append(interpret_sampleid_for_index(sampleid)) # 'Index'
-            project = row[2].strip()
+            project = cleanup_identifier(row[2])
             if not project: continue
             record.append(project)       # 'Description'
             record.append(control)       # 'Control'
@@ -796,7 +769,7 @@ def update(request, response):
     for pos, record in enumerate(samplesheet.records):
         try:
             sampleid = request.cgi_fields["sampleid%i" % pos].value
-            sampleid = cleanup_sampleid(sampleid)
+            sampleid = cleanup_identifier(sampleid)
         except KeyError:
             continue
         record[1] = int(request.cgi_fields["lane%i" % pos].value)
@@ -811,7 +784,7 @@ def update(request, response):
             index = interpret_sampleid_for_index(sampleid, append_a)
         record[2] = sampleid
         record[4] = index
-        record[5] = get_default(request, "description%i" % pos)
+        record[5] = cleanup_identifier(get_default(request, "description%i" % pos))
         record[6] = request.cgi_fields["control%i" % pos].value
         record[7] = get_default(request, "recipe%i" % pos)
         record[8] = get_default(request, "operator%i" % pos)
@@ -822,7 +795,7 @@ def update(request, response):
     # Add a new record
     try:
         sampleid = request.cgi_fields['sampleid'].value.strip()
-        sampleid = cleanup_sampleid(sampleid)
+        sampleid = cleanup_identifier(sampleid)
         if not sampleid: raise KeyError
     except KeyError:
         pass
@@ -849,7 +822,7 @@ def update(request, response):
             default = samplesheet.records[-1][5]
         except IndexError:
             default = ''
-        record.append(get_default(request, 'description', default=default))
+        record.append(cleanup_identifier(get_default(request, 'description', default=default)))
         record.append(get_default(request, 'control', default='N'))
         try:
             default = samplesheet.records[-1][7]
@@ -865,7 +838,7 @@ def update(request, response):
             default = samplesheet.records[-1][9]
         except IndexError:
             default = ''
-        record.append(get_default(request, 'sampleproject', default=default))
+        record.append(cleanup_identifier(get_default(request, 'sampleproject', default=default)))
         samplesheet.records.append(record)
         # Clone sample into other lanes
         while lanes:
