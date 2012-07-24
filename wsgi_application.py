@@ -510,6 +510,9 @@ class Samplesheet(object):
         for record in self.records:
             # Convert lane to int
             record[1] = int(record[1])
+            # Index sequence: Convert dummy to empty.
+            if record[4] == 'QQQQQQ':
+                record[4] = ''
             # Upgrade to new samplesheet; additional column 'SampleProject'
             # and copy over data from 'Description'.
             if len(record) < 10:
@@ -532,13 +535,19 @@ class Samplesheet(object):
         writer = csv.writer(outfile, quoting=csv.QUOTE_MINIMAL)
         writer.writerow(self.header)
         for record in self.records:
+            # Index sequence: Convert empty to dummy.
+            if record[4] == '':
+                record[4] = 'QQQQQQ'
             # Copy over data to 'SampleProject' from 'Description'.
             record[9] = record[5]
             writer.writerow(record)
         outfile.close()
 
+
 def cleanup_identifier(identifier):
     """Strip it, replace all whitespaces with underscore,
+    replace the abominable dot '.' with double underscore,
+    replace Swedish alphabet characters with ASCII,
     replace disallowed characters with underscore."""
     identifier = identifier.strip()
     identifier = identifier.replace('.', '__')
@@ -639,7 +648,7 @@ def view(request, response, xfer_msg=None):
     rows = []
     seqindex_lengths = dict()
     seqindex_lookup = dict()            # Key: lane number, value: seq index
-    # Figure out whether that A has been appended previously
+    # Figure out whether that extra A has been appended previously.
     append_a = None
     for record in samplesheet.records:
         if append_a is None or append_a == True:
@@ -672,8 +681,8 @@ def view(request, response, xfer_msg=None):
         if warning:
             problems.append(str(pos+1))
         warning = B(' '.join(warning), style='color: red;')
-        # The hated dot '.' in project identifiers is stored as double
-        # underscore, since CASAVA cannot handle dot.
+        # The abominable dot '.' in project identifiers is stored as
+        # double underscore, since CASAVA cannot handle dot.
         # For display purposes, the dot is shown instead of double underscore.
         description = record[5].replace('__', '.')
         rows.append(TR(TD(str(pos+1)),
