@@ -40,7 +40,7 @@ import string
 import subprocess
 
 from HyperText.HTML40 import *
-from samplesheet.index_definitions import BASIC_LOOKUP
+from samplesheet.index_definitions import INDEX_LOOKUP
 
 import wireframe.application
 from wireframe.response import *
@@ -85,34 +85,6 @@ SAMPLEREFS = [dict(value='unknown'),
               dict(value='WS210', label='worm')]
 SAMPLEREFS_SET = set([s['value'] for s in SAMPLEREFS])
 
-INDEX_LOOKUP = BASIC_LOOKUP.copy()
-
-INDEX_LOOKUP.update(dict([(k.replace('index', ''), v)
-                          for k,v in BASIC_LOOKUP.items()]))
-INDEX_LOOKUP.update(dict([(k.replace('index', 'idx'), v)
-                          for k,v in BASIC_LOOKUP.items()]))
-INDEX_LOOKUP.update(dict([(k.replace('index', 'in'), v)
-                          for k,v in BASIC_LOOKUP.items()]))
-INDEX_LOOKUP.update(dict([(k.replace('index', 'i'), v)
-                          for k,v in BASIC_LOOKUP.items()]))
-INDEX_LOOKUP.update(dict([(k.replace('rpi', 'r'), v)
-                          for k,v in BASIC_LOOKUP.items()]))
-INDEX_LOOKUP.update(dict([(k.replace('rpi', 'indexr'), v)
-                          for k,v in BASIC_LOOKUP.items()]))
-INDEX_LOOKUP.update(dict([(k.replace('agilent', 'a'), v)
-                          for k,v in BASIC_LOOKUP.items()]))
-INDEX_LOOKUP.update(dict([(k.replace('agilent', 'indexa'), v)
-                          for k,v in BASIC_LOOKUP.items()]))
-INDEX_LOOKUP.update(dict([(k.replace('mondrian', 'm'), v)
-                          for k,v in BASIC_LOOKUP.items()]))
-INDEX_LOOKUP.update(dict([(k.replace('mondrian', 'indexm'), v)
-                          for k,v in BASIC_LOOKUP.items()]))
-INDEX_LOOKUP.update(dict([(k.replace('halo', 'h'), v)
-                          for k,v in BASIC_LOOKUP.items()]))
-INDEX_LOOKUP.update(dict([(k.replace('halo', 'indexh'), v)
-                          for k,v in BASIC_LOOKUP.items()]))
-INDEX_LOOKUP.update(dict([(k.upper(), v)
-                          for k,v in INDEX_LOOKUP.items()]))
 
 
 logging.basicConfig(level=logging.INFO)
