@@ -5,7 +5,7 @@ one and two mismatch indexes.
 
 import csv
 
-from samplesheet.wsgi_application import BASIC_LOOKUP
+from samplesheet.index_definitions import BASIC_LOOKUP
 
 outfile = csv.writer(open('index_overlaps.csv', 'wb'))
 outfile.writerow(['Index', 'Sequence', 'Identical',
