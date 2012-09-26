@@ -19,7 +19,8 @@ if __name__ == '__main__':
     for record in sys.stdin:
         index = None
         for col in record.strip().split():
-            if len([c for c in col if c.upper() not in "ACGTN-"]) > 0:
+            col = col.upper()
+            if len([c for c in col if c not in "ACGTN-"]) > 0:
                 continue
             index = col
             break
