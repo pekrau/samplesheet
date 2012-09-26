@@ -41,6 +41,7 @@ import subprocess
 
 from HyperText.HTML40 import *
 from samplesheet.index_definitions import INDEX_LOOKUP
+from samplesheet.annotate_index import hamming_distance
 
 import wireframe.application
 from wireframe.response import *
@@ -58,6 +59,9 @@ TRASH_DIR = '/var/local/samplesheet/trash'
 
 # Strict set of allowed characters, to match CASAVA requirements
 ALLOWED_CHARS = set(string.ascii_letters + string.digits + '_-')
+
+# Minimum allowed Hamming distance between index sequences in a lane.
+MIN_HAMMING_DISTANCE = 3
 
 HEADER = ('FCID',
           'Lane',
@@ -309,7 +313,7 @@ def view(request, response, xfer_msg=None):
     header = TR(TH(),
                 TH('FCID'),
                 TH('Lane'),
-                TH('SampleID', BR(), '(as "ID_indexN" or "ID N")'),
+                TH('SampleID', BR(), '(as "ID_index-spec")'),
                 TH('SampleRef'),
                 TH('Index', BR(), '(sequence)'),
                 TH('Description'),
@@ -317,7 +321,6 @@ def view(request, response, xfer_msg=None):
                 TH('Recipe'),
                 TH('Operator'))
     rows = []
-    seqindex_lengths = dict()
     seqindex_lookup = dict()            # Key: lane number, value: seq index
     # Figure out whether that extra A has been appended previously.
     append_a = None
@@ -326,7 +329,11 @@ def view(request, response, xfer_msg=None):
             append_a = len(record[4]) > 6 and record[4][-1] == 'A'
     if append_a is None:
         append_a = False
+    index_sequence_length = None
     for pos, record in enumerate(samplesheet.records):
+        # Same length of index sequence required for entire samplesheet!
+        if index_sequence_length is None and record[4]:
+            index_sequence_length = len(record[4])
         lanes = []
         for i in xrange(1, 9):
             if i == record[1]:
@@ -335,18 +342,30 @@ def view(request, response, xfer_msg=None):
                 lanes.append(OPTION(str(i)))
         samplerefs = _get_sampleref_options(record[3])
         warning = []
-        if record[4]:                   # Index sequence
+        if record[4]:                   # Check index sequence
             if set(record[4].upper()).difference(set('ATGC')):
-                warning.append('Invalid nucleotide sequence!')
-            length = seqindex_lengths.setdefault(record[1], len(record[4]))
-            if length != len(record[4]):
-                warning.append('Unequal length of sequence index for lane!')
-            if record[4] in seqindex_lookup.get(record[1], dict()):
-                warning.append('Sequence index already used in lane!')
+                warning.append('Invalid nucleotide in index sequence!')
+            if index_sequence_length:
+                if index_sequence_length != len(record[4]):
+                    warning.append('Unequal length of index sequence!')
+            other_seqindices = seqindex_lookup.get(record[1], set())
+            if record[4] in other_seqindices:
+                warning.append('Index sequence already used in lane!')
             else:
+                for other_seqindex in other_seqindices:
+                    try:
+                        hd = hamming_distance(record[4], other_seqindex)
+                    except ValueError:
+                        pass
+                    else:
+                        if hd < MIN_HAMMING_DISTANCE:
+                            warning.append('Too small difference between'
+                                           ' this index sequence and'
+                                           ' another in lane!')
+                            break
                 seqindex_lookup.setdefault(record[1], set()).add(record[4])
             if interpret_sampleid_for_index(record[2], append_a) != record[4]:
-                warning.append('SampleID and Index sequence inconsistent!')
+                warning.append('SampleID and index sequence inconsistent!')
         else:
             warning.append('Missing sequence!')
         if warning:
@@ -415,20 +434,29 @@ def view(request, response, xfer_msg=None):
                         LI('NOTE: Sample and project identifiers are now'
                            ' strictly controlled: Offensive characters are'
                            ' automatically converted to underscores.'),
-                        LI('Specify index number for the sample like so:'),
-                        DL(DT('Ordinary Illumina indexes:'),
-                           DD("'samplename_index3', or 'samplename_3'"),
-                           DT('Small RNA indexes:'),
-                           DD("'samplename_rpi6', or 'samplename_r6'"),
-                           DT('Agilent indexes:'),
-                           DD("'samplename_agilent14', or 'samplename_a14'"),
-                           DT('Mondrian indexes:'),
-                           DD("'samplename_mondrian11', or 'samplename_m11'"),
-                           DT('Haloplex indexes:'),
-                           DD("'samplename_halo11', or 'samplename_h11'"))),
-                     ' Click "Save" to store the samplesheet.'
-                     ' Comicbookguy will fetch it automatically'
-                     ' within 15 minutes.')
+                        LI('Specify index number for the sample like so:',
+                           TABLE(TR(TH('Index type'),
+                                    TH('Standard name'),
+                                    TH('Alternate short name')),
+                                 TR(TD('Ordinary Illumina'),
+                                    TD('samplename_index3'),
+                                    TD('samplename_3')),
+                                 TR(TD('Small RNA'),
+                                    TD('samplename_rpi6'),
+                                    TD('samplename_r6')),
+                                 TR(TD('Agilent'),
+                                    TD('samplename_agilent14'),
+                                    TD('samplename_a14')),
+                                 TR(TD('Mondrian'),
+                                    TD('samplename_mondrian11'),
+                                    TD('samplename_m11')),
+                                 TR(TD('Haloplex'),
+                                    TD('samplename_halo11'),
+                                    TD('samplename_h11')),
+                                 border=1)),
+                        LI('Click "Save" to store the samplesheet.'
+                           ' Comicbookguy will fetch it automatically'
+                           ' within 15 minutes.')))
     ops = TABLE(TR(TD(FORM(I('Cut-and-paste 4 columns'
                              ' (Lane, Sample, Project, Ref.genome).'),
                            TEXTAREA(name='cutandpaste', cols=40, rows=4),
