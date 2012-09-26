@@ -1,3 +1,16 @@
+""" Sequence index definitions for samplesheet generator.
+
+Per Kraulis, Pontus Larsson
+"""
+
+# IMPORTANT NOTE!
+# ---------------
+# The module variabel BASIC_LOOKUP contains the primary definitions of
+# the sequence indexes and their names.
+# The module variable INDEX_LOOKUP, defined at the end of this module,
+# contains a series of aliases for the index names.
+
+
 # The Illumina index number-to-sequence mappings have been double-checked
 # against the documentation from Illumina dated 2011-10-11.
 # index1-index27 are from the table "TruSeq RNA and DNA Sample Prep Kits".
@@ -28,6 +41,7 @@ BASIC_LOOKUP = dict(index1='ATCACG',
                     index25='ACTGAT',
                     # index26 is "reserved" by Illumina
                     index27='ATTCCT')
+
 # rpi1-rpi48 are from the table "TruSeq Small RNA Sample Prep Kits",
 # after reverse-complement conversion.
 # RPI indexes for "TruSeq Small RNA", 
@@ -81,6 +95,7 @@ BASIC_LOOKUP.update(
         rpi46='TCCCGA',
         rpi47='TCGAAG',
         rpi48='TCGGCA'))
+
 # Indexes agilent1-agilent96 are from the Google Docs spreadsheet
 # "illumina 96 barcodes plate format_column arrangement" by Joel Gruselius.
 # It specifies the Agilent indexes.
@@ -181,6 +196,7 @@ BASIC_LOOKUP.update(
         agilent94='CCGTCC',
         agilent95='ATTCCT',
         agilent96='AGGTTT'))
+
 # Indexes mondrian1-mondrian16 are from the PDF "User Guide for ovation
 # SP Ultralow Library System" a.k.a. Mondrian system.
 BASIC_LOOKUP.update(
@@ -200,6 +216,7 @@ BASIC_LOOKUP.update(
         mondrian14='CACCTC',
         mondrian15='GTGGCC',
         mondrian16='TGTTGC'))
+
 # Indexes halo1-halo96 are from the PDF "Haloplex PCR Target Enrichment &
 # Library Preparation Guide, Version 2.0, November 2011"
 BASIC_LOOKUP.update(
@@ -299,3 +316,36 @@ BASIC_LOOKUP.update(
         halo94='ATCAGT',
         halo95='GGCGCT',
         halo96='ACTTAT'))
+
+
+# The module variable INDEX_LOOKUP contains a series of aliases
+# for the index designations.
+
+INDEX_LOOKUP = BASIC_LOOKUP.copy()
+
+INDEX_LOOKUP.update(dict([(k.replace('index', ''), v)
+                          for k,v in BASIC_LOOKUP.items()]))
+INDEX_LOOKUP.update(dict([(k.replace('index', 'idx'), v)
+                          for k,v in BASIC_LOOKUP.items()]))
+INDEX_LOOKUP.update(dict([(k.replace('index', 'in'), v)
+                          for k,v in BASIC_LOOKUP.items()]))
+INDEX_LOOKUP.update(dict([(k.replace('index', 'i'), v)
+                          for k,v in BASIC_LOOKUP.items()]))
+INDEX_LOOKUP.update(dict([(k.replace('rpi', 'r'), v)
+                          for k,v in BASIC_LOOKUP.items()]))
+INDEX_LOOKUP.update(dict([(k.replace('rpi', 'indexr'), v)
+                          for k,v in BASIC_LOOKUP.items()]))
+INDEX_LOOKUP.update(dict([(k.replace('agilent', 'a'), v)
+                          for k,v in BASIC_LOOKUP.items()]))
+INDEX_LOOKUP.update(dict([(k.replace('agilent', 'indexa'), v)
+                          for k,v in BASIC_LOOKUP.items()]))
+INDEX_LOOKUP.update(dict([(k.replace('mondrian', 'm'), v)
+                          for k,v in BASIC_LOOKUP.items()]))
+INDEX_LOOKUP.update(dict([(k.replace('mondrian', 'indexm'), v)
+                          for k,v in BASIC_LOOKUP.items()]))
+INDEX_LOOKUP.update(dict([(k.replace('halo', 'h'), v)
+                          for k,v in BASIC_LOOKUP.items()]))
+INDEX_LOOKUP.update(dict([(k.replace('halo', 'indexh'), v)
+                          for k,v in BASIC_LOOKUP.items()]))
+INDEX_LOOKUP.update(dict([(k.upper(), v)
+                          for k,v in INDEX_LOOKUP.items()]))
