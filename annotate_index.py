@@ -16,7 +16,7 @@ def hamming_distance(s1, s2):
 for record in sys.stdin:
     index = None
     for col in record.strip().split():
-        if len([c for c in col if c.uppercase() not in "ACGTN-"]) > 0:
+        if len([c for c in col if c.upper() not in "ACGTN-"]) > 0:
             continue
         index = col
         break
