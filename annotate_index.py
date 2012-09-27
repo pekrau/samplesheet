@@ -5,7 +5,6 @@ a comma-separated list of matching and close-matching index names
 import sys
 from samplesheet.index_definitions import BASIC_LOOKUP
 
-
 def hamming_distance(s1, s2):
     """Calculate the Hamming distance between two strings of equal lengths.
     Raise ValueError if strings are of unequal length.
@@ -15,11 +14,19 @@ def hamming_distance(s1, s2):
 
 
 if __name__ == '__main__':
-    mismatches = 1
-    print "\t".join(["Input"] + ["{} mismatch".format(str(i)) for i in range(mismatches+1)])
 
+    mismatches = 1
     for record in sys.stdin:
-        index = record.strip().split()[-1]
+        index = None
+        for col in record.strip().split():
+            col = col.upper()
+            if len([c for c in col if c not in "ACGTN-"]) > 0:
+                continue
+            index = col
+            break
+        if index is None:
+            continue
+
         names = []
         for name, sequence in BASIC_LOOKUP.items():
             try:
@@ -29,4 +36,5 @@ if __name__ == '__main__':
             except:
                 pass
 
-        print "\t".join([record.strip()] + [",".join([n[0] for n in names if n[1] == i]) for i in range(mismatches+1)])
+        print("\t".join(record.strip().split() + [",".join(sorted([n[0] for n in names if n[1] == i])) for i in range(mismatches+1)]))
+
