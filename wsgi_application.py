@@ -17,22 +17,28 @@ work properly when the owner of the apache server was changed back to
 the default. We couldn't figure out why, and decided it wasn't worth
 the effort. Instead, the current solution was adopted.
 
-/Per Kraulis, 2012-02-06
+Modifications:
+
+Added 'Failed' flag; kludge involving the operator column.
+/Per Kraulis 2012-10-11
+
+Apply strict character control on sample name and project name, for CASAVA.
+/Per Kraulis 2012-05-10
+
+Added cut-and-paste feature.
+/Per Kraulis 2012-02-28
 
 The data visible in column 'Description' is now also stored in 'SampleProject'.
 This is a stop-gap solution.
 /Per Kraulis 2012-02-17
 
-Added cut-and-paste feature.
-/Per Kraulis 2012-02-28
-
-Apply strict character control on sample name and project name, for CASAVA.
-/Per Kraulis 2012-05-10
+/Per Kraulis, 2012-02-06
 """
 
 import logging
 import os
 import csv
+import re
 from cStringIO import StringIO
 import socket
 import time
@@ -59,6 +65,9 @@ TRASH_DIR = '/var/local/samplesheet/trash'
 
 # Strict set of allowed characters, to match CASAVA requirements
 ALLOWED_CHARS = set(string.ascii_letters + string.digits + '_-')
+
+# Sample identifier regexp
+SAMPLEID_RX = re.compile(r'^P\d{3,3}_\d{3,3}[ABCDF]?$')
 
 # Minimum allowed Hamming distance between index sequences in a lane.
 MIN_HAMMING_DISTANCE = 3
@@ -140,6 +149,9 @@ class Samplesheet(object):
                 if os.path.exists(self._filepath): break
             return self._filepath
 
+    def get_url(self, *suffixes):
+        return get_url(self.fcid, *suffixes)
+
     @property
     def url(self):
         return get_url(self.fcid)
@@ -153,7 +165,7 @@ class Samplesheet(object):
         try:
             return self._mtime
         except AttributeError:
-            if self.exists():
+            if self.exists:
                 mtime = os.path.getmtime(self.filepath)
                 self._mtime = time.strftime("%Y-%m-%d %H:%M:%S",
                                             time.localtime(mtime))
@@ -161,6 +173,7 @@ class Samplesheet(object):
                 self._mtime = None
             return self._mtime
 
+    @property
     def exists(self):
         if not self.fcid: return False
         return os.path.exists(self.filepath)
@@ -242,7 +255,7 @@ def cleanup_identifier(identifier):
     return ''.join(chars)
 
 def interpret_sampleid_for_index(sampleid, append_a=False):
-    """Look for index number at end of samplid.
+    """Look for index number at end of sampleid.
     Also append that extra A if requested."""
     try:
         result = INDEX_LOOKUP[sampleid.split('_')[-1]]
@@ -279,9 +292,9 @@ def home(request, response):
                P('Comments or questions to Per Kraulis (',
                  A('per.kraulis@scilifelab.se',
                    href='mailto:per.kraulis@scilifelab.se'),
-                 ') or Roman Valls (',
-                 A('roman.valls.guimera@scilifelab.se',
-                   href='mailto:roman.valls.guimera@scilifelab.se'),
+                 ') or Pontus Larssons (',
+                 A('pontus.larsson@scilifelab.se',
+                   href='mailto:pontus.larsson@scilifelab.se'),
                  ').'))
     form = FORM('Flowcell ID: ',
                 INPUT(type='text', name='FCID'),
@@ -299,27 +312,31 @@ def home(request, response):
 
 def create(request, response):
     samplesheet = Samplesheet(request.cgi_fields['FCID'].value.strip())
-    if samplesheet.exists():
+    if samplesheet.exists:
         raise HTTP_BAD_REQUEST('FCID samplesheet exists already')
     samplesheet.create()
     raise HTTP_SEE_OTHER(Location=samplesheet.url)
 
 def view(request, response, xfer_msg=None):
     samplesheet = Samplesheet(request.path_named_values['fcid'])
-    if not samplesheet.exists():
+    if not samplesheet.exists:
         raise HTTP_NOT_FOUND(str(samplesheet))
     samplesheet.read()
     problems = list()
     header = TR(TH(),
                 TH('FCID'),
                 TH('Lane'),
-                TH('SampleID', BR(), '(as "ID_index-spec")'),
+                TH('SampleID + index-spec',
+                   BR(),
+                   '(format: see above)',
+                   width='20%'),
                 TH('SampleRef'),
                 TH('Index', BR(), '(sequence)'),
-                TH('Description'),
+                TH('ProjectID'),
                 TH('Control'),
                 TH('Recipe'),
-                TH('Operator'))
+                TH('Operator'),
+                TH('Run Failed'))
     rows = []
     seqindex_lookup = dict()            # Key: lane number, value: seq index
     # Figure out whether that extra A has been appended previously.
@@ -342,6 +359,12 @@ def view(request, response, xfer_msg=None):
                 lanes.append(OPTION(str(i)))
         samplerefs = _get_sampleref_options(record[3])
         warning = []
+        # Check valid sampleid
+        sampleid = record[2]
+        if not SAMPLEID_RX.match(sampleid):
+            sampleid = '_'.join(sampleid.split('_')[:-1])
+            if not SAMPLEID_RX.match(sampleid):
+                warning.append('Invalid sampleid')
         if record[4]:                   # Check index sequence
             if set(record[4].upper()).difference(set('ATGC')):
                 warning.append('Invalid nucleotide in index sequence!')
@@ -375,25 +398,30 @@ def view(request, response, xfer_msg=None):
         # double underscore, since CASAVA cannot handle dot.
         # For display purposes, the dot is shown instead of double underscore.
         description = record[5].replace('__', '.')
+        # The Operator column may also contain the 'Failed' flag.
+        failed = record[8].split('_')[-1] == 'failed'
         rows.append(TR(TD(str(pos+1)),
                        TD(record[0]),
                        TD(SELECT(name="lane%i" % pos, *lanes)),
                        TD(INPUT(type='text', name="sampleid%i" % pos,
-                                value=record[2], size=30)),
+                                value=record[2], size=30),
+                          warning),
                        TD(SELECT(name="sampleref%i" % pos, *samplerefs)),
                        TD(INPUT(type='text', name="index%i" % pos,
-                                value=record[4], size=10),
-                          warning),
+                                value=record[4], size=10)),
                        TD(INPUT(type='text', name="description%i" % pos,
                                 value=description, size=24)),
                        TD(INPUT(type='radio', name="control%i" % pos,
                                 value='N', checked=record[6]=='N'), 'N ',
+                          BR(),
                           INPUT(type='radio', name="control%i" % pos,
                                 value='Y', checked=record[6]=='Y'), 'Y'),
                        TD(INPUT(type='text', name="recipe%i" % pos,
                                 value=record[7], size=4)),
                        TD(INPUT(type='text', name="operator%i" % pos,
-                                value=record[8], size=4))))
+                                value=record[8], size=4)),
+                       TD(INPUT(type='checkbox', name="failed%i" % pos,
+                                value='failed', checked=failed))))
     try:
         previous_lane = samplesheet.records[-1][1]
         previous_sampleref = samplesheet.records[-1][3]
@@ -416,47 +444,55 @@ def view(request, response, xfer_msg=None):
                    TD(INPUT(type='text', name='description', size=24)),
                    TD(INPUT(type='radio', checked=True,
                             name='control', value='N'), 'N ',
+                      BR(),
                       INPUT(type='radio', name='control', value='Y'), 'Y'),
                    TD(INPUT(type='text', name='recipe', size=4)),
                    TD(INPUT(type='text', name='operator', size=4))))
     rows.reverse()
     rows.insert(0, header)
-    table = TABLE(border=1, *rows)
+    table = TABLE(border=1, cellpadding=2, *rows)
     instructions = P(UL(LI('To add several records, cut-and-paste'
                            ' from the Google Docs spreadsheet'
-                           ' into the text box to the right.'),
-                        LI('To add another record,'
-                           ' fill in values in the first row.'),
+                           ' into the text box to the right, then save.'),
+                        LI('To add another record, fill in values'
+                           ' in the first row, then save.'),
                         LI('To delete a record, set its SampleID'
-                           ' to a blank character.'),
+                           ' to a blank character, then save.'),
                         LI('To modify a record, change the value'
-                           ' in the field.'),
-                        LI('NOTE: Sample and project identifiers are now'
-                           ' strictly controlled: Offensive characters are'
-                           ' automatically converted to underscores.'),
-                        LI('Specify index number for the sample like so:',
+                           ' in the field, then save.'),
+                        LI('Offensive characters in Project Identifiers'
+                           ' are now automatically converted'
+                           ' to underscores.'),
+                        LI('SampleID must look like ',
+                           B('P123_456'), ', possibly with any of the'
+                           ' characters B, C, D or F attached.'),
+                        LI('Specify index number for the sample by adding the'
+                           ' appropriate suffix using underscore, like so:',
                            TABLE(TR(TH('Index type'),
-                                    TH('Standard name'),
-                                    TH('Alternate short name')),
+                                    TH('Standard index spec'),
+                                    TH('Alternate short index spec')),
                                  TR(TD('Ordinary Illumina'),
-                                    TD('samplename_index3'),
-                                    TD('samplename_3')),
+                                    TD('sampleid_index3'),
+                                    TD('sampleid_3')),
                                  TR(TD('Small RNA'),
-                                    TD('samplename_rpi6'),
-                                    TD('samplename_r6')),
+                                    TD('sampleid_rpi6'),
+                                    TD('sampleid_r6')),
                                  TR(TD('Agilent'),
-                                    TD('samplename_agilent14'),
-                                    TD('samplename_a14')),
+                                    TD('sampleid_agilent14'),
+                                    TD('sampleid_a14')),
                                  TR(TD('Mondrian'),
-                                    TD('samplename_mondrian11'),
-                                    TD('samplename_m11')),
+                                    TD('sampleid_mondrian11'),
+                                    TD('sampleid_m11')),
                                  TR(TD('Haloplex'),
-                                    TD('samplename_halo11'),
-                                    TD('samplename_h11')),
-                                 border=1)),
-                        LI('Click "Save" to store the samplesheet.'
-                           ' Comicbookguy will fetch it automatically'
-                           ' within 15 minutes.')))
+                                    TD('sampleid_halo11'),
+                                    TD('sampleid_h11')),
+                                 border=1,
+                                 cellpadding=2)),
+                        LI('After the sequencing run, check the box'
+                           ' "Run Failed" for samples in lanes which ',
+                           B('do not'),
+                           ' reach the QC criteria. Those reads will not'
+                           ' be counted in the sum total for the sample.')))
     ops = TABLE(TR(TD(FORM(I('Cut-and-paste 4 columns'
                              ' (Lane, Sample, Project, Ref.genome).'),
                            TEXTAREA(name='cutandpaste', cols=40, rows=4),
@@ -465,13 +501,10 @@ def view(request, response, xfer_msg=None):
                            action=samplesheet.url))),
                 TR(TD(FORM(INPUT(type='submit',
                                  value='Sort samplesheet records'),
-                           INPUT(type='hidden', name='sort', value='default'),
+                           INPUT(type='hidden',
+                                 name='sort', value='default'),
                            method='POST',
                            action=samplesheet.url))),
-                ## TR(TD(FORM(INPUT(type='submit',
-                ##                  value='Download CSV file (obsolete)'),
-                ##            method='GET',
-                ##            action=samplesheet.file_url))),
                 TR(TD(FORM(INPUT(type='submit',
                                  value='Delete this samplesheet',
                                  onclick="return confirm('Really delete?');"),
@@ -480,6 +513,8 @@ def view(request, response, xfer_msg=None):
                            method='POST',
                            action=samplesheet.url))),
                 width='100%')
+    title = "%s (%s)" % (samplesheet,
+                         A("CSV file", href=samplesheet.file_url))
     warning = []
     if xfer_msg:
         warning.append(P(xfer_msg))
@@ -487,17 +522,16 @@ def view(request, response, xfer_msg=None):
         warning.append(P("There are problems regarding records %s!" %
                          ', '.join(problems)))
     warning = DIV(style='color: red;', *warning)
-    form = FORM(P(INPUT(type='submit', value='Save')),
-    ##               INPUT(type='checkbox', name='append_a',
-    ##                     value='y', checked=append_a),
-    ##               " Append an 'A' to a newly defined index sequence."),
+    form = FORM(P(INPUT(type='submit', value='Save'),
+                  ' Store the samplesheet. The pipeline computer (comicbookguy)'
+                  ' will fetch it automatically within 15 minutes.'),
                 P(table),
                 method='POST',
                 action=samplesheet.url)
     response['Content-Type'] = 'text/html'
     response.append(str(HTML(HEAD(TITLE(str(samplesheet))),
                              BODY(A('Home', href=get_url()),
-                                  H1(str(samplesheet)),
+                                  H1(title),
                                   TABLE(TR(TD(instructions),
                                            TD(ops))),
                                   warning,
@@ -604,8 +638,18 @@ def update(request, response):
         record[6] = request.cgi_fields["control%i" % pos].value
         record[7] = get_default(request, "recipe%i" % pos)
         record[8] = get_default(request, "operator%i" % pos)
+        # Encode the 'Failed' flag into Operator column
+        parts = record[8].split('_')
+        failed = get_default(request, "failed%i" % pos)
+        if failed:
+            if parts[-1] != 'failed':
+                parts.append('failed')
+        else:
+            if parts[-1] == 'failed':
+                parts = parts[:-1]
+        record[8] = '_'.join(parts)
 
-    # Delete all records which have blank SampleID
+    # Only keep records with defined SamplieID; delete all others
     samplesheet.records = [r for r in samplesheet.records if r[2]]
 
     # Add a new record
@@ -712,7 +756,6 @@ def download(request, response):
 
 
 application = wireframe.application.Application(human_debug_output=True)
-
 application.add_map(r'template:/?',
                     GET=home,
                     POST=create)

@@ -3,7 +3,7 @@ Read index sequence(s) from standard in and echo back to standard out with
 a comma-separated list of matching and close-matching index names
 """
 import sys
-from samplesheet.index_definitions import BASIC_LOOKUP
+from index_definitions import BASIC_LOOKUP
 
 def hamming_distance(s1, s2):
     """Calculate the Hamming distance between two strings of equal lengths.
