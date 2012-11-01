@@ -486,6 +486,12 @@ def view(request, response, xfer_msg=None):
                                  TR(TD('Haloplex'),
                                     TD('sampleid_halo11'),
                                     TD('sampleid_h11')),
+                                 TR(TD('Haloplex HT 8-bp'),
+                                    TD('sampleid_haloht31'),
+                                    TD('sampleid_ht31')),
+                                 TR(TD('SureSelect'),
+                                    TD('sampleid_sureselect9'),
+                                    TD('sampleid_ss9')),
                                  border=1,
                                  cellpadding=2)),
                         LI('After the sequencing run, check the box'
