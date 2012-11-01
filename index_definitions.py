@@ -353,7 +353,7 @@ INDEX_LOOKUP.update(dict([(k.replace('halo', 'indexh'), v)
 
 # Indexes haloht1-haloht96 are the new 8-bp indexes for Haloplex.
 # From a CSV file "oligo_reference-halo8.csv" provided by Joel Gruselius.
-# Identifying prefixes: 'haloht', 'ht'
+# Identifying prefixes: 'haloht', 'hht'
 HALOHT = dict(haloht1='AACGTGAT',
               haloht2='AAACATCG',
               haloht3='ATGCCTAA',
@@ -452,7 +452,7 @@ HALOHT = dict(haloht1='AACGTGAT',
               haloht96='GCCAAGAC')
 BASIC_LOOKUP.update(HALOHT)
 INDEX_LOOKUP.update(HALOHT)
-INDEX_LOOKUP.update(dict([(k.replace('haloht', 'ht'), v)
+INDEX_LOOKUP.update(dict([(k.replace('haloht', 'hht'), v)
                           for k,v in HALOHT.items()]))
 
 # Indexes sureselect1-sureselect16 are the 16 SureSelect indexes.

@@ -488,7 +488,7 @@ def view(request, response, xfer_msg=None):
                                     TD('sampleid_h11')),
                                  TR(TD('Haloplex HT 8-bp'),
                                     TD('sampleid_haloht31'),
-                                    TD('sampleid_ht31')),
+                                    TD('sampleid_hht31')),
                                  TR(TD('SureSelect'),
                                     TD('sampleid_sureselect9'),
                                     TD('sampleid_ss9')),
