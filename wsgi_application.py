@@ -287,8 +287,7 @@ def home(request, response):
         rows.append(TR(TD(A(sheet.fcid, href=sheet.url)),
                        TD(sheet.mtime)))
     info = DIV('Follow the instructions in the Google document ',
-               A('10249_01_To create a samplesheet for demultiplexing HiSeq runs',
-                 href='https://docs.google.com/a/scilifelab.se/document/d/1tBABcyk-mUt4FosqunrmooRGA-IfgkmLxWe2aj0pnNc/edit'),
+               B('10249 To create a samplesheet for demultiplexing HiSeq runs.'),
                P('Comments or questions to Per Kraulis (',
                  A('per.kraulis@scilifelab.se',
                    href='mailto:per.kraulis@scilifelab.se'),
@@ -365,8 +364,8 @@ def view(request, response, xfer_msg=None):
             sampleid = '_'.join(sampleid.split('_')[:-1])
             if not SAMPLEID_RX.match(sampleid):
                 warning.append('Invalid sampleid')
-        if record[4]:                   # Check index sequence
-            if set(record[4].upper()).difference(set('ATGC')):
+        if record[4]:                   # Check index sequence; '-' for dual
+            if set(record[4].upper()).difference(set('ATGC-')):
                 warning.append('Invalid nucleotide in index sequence!')
             if index_sequence_length:
                 if index_sequence_length != len(record[4]):
@@ -492,6 +491,8 @@ def view(request, response, xfer_msg=None):
                                  TR(TD('SureSelect'),
                                     TD('sampleid_sureselect9'),
                                     TD('sampleid_ss9')),
+                                 TR(TD('TruSeq DNA Dual HT'),
+                                    TD('dual13')),
                                  border=1,
                                  cellpadding=2)),
                         LI('After the sequencing run, check the box'
