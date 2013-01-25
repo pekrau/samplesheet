@@ -386,13 +386,16 @@ def view(request, response, xfer_msg=None):
                                            ' another in lane!')
                             break
                 seqindex_lookup.setdefault(record[1], set()).add(record[4])
-            if interpret_sampleid_for_index(record[2], append_a) != record[4]:
+            indexseq = interpret_sampleid_for_index(record[2], append_a)
+            if indexseq and indexseq != record[4]:
                 warning.append('SampleID and index sequence inconsistent!')
+            if not record[4]:
+                warning.append('index sequence missing!')
         else:
             warning.append('Missing sequence!')
         if warning:
             problems.append(str(pos+1))
-        warning = B(' '.join(warning), style='color: red;')
+        warning = B('<br>'.join(warning), style='color: red;')
         # The abominable dot '.' in project identifiers is stored as
         # double underscore, since CASAVA cannot handle dot.
         # For display purposes, the dot is shown instead of double underscore.
