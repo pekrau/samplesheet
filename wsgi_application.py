@@ -6,8 +6,8 @@ The transfer of samplesheets to the remote machine (comicbookguy, CBG)
 has been changed. The 'push' model used previously, whereby this script
 used scp to transfer a newly modified file to CBG, has been scrapped.
 
-Currently, CBG has a rsync command in cron (user hiseq) which syncs
-the data directory on the web server with that on CBG.
+Currently, a 'pull' model is used. CBG has a rsync command in cron (user
+hiseq) which syncs the data directory on the web server with that on CBG.
 
 To allow for this, the directory structure of the samplesheet directory
 has been changed to agree with that used on CBG, i.e. yearly subdirectories.
@@ -68,6 +68,9 @@ ALLOWED_CHARS = set(string.ascii_letters + string.digits + '_-')
 
 # Sample identifier regexp
 SAMPLEID_RX = re.compile(r'^P\d{3,3}_\d{3,3}[ABCDF]?$')
+
+# Project identifier regexp
+PROJECTID_RX = re.compile(r'^[A-Z]+__[A-Z][a-zA-Z]+_[0-9][0-9]_[0-9][0-9]$')
 
 # Minimum allowed Hamming distance between index sequences in a lane.
 MIN_HAMMING_DISTANCE = 3
@@ -321,7 +324,7 @@ def view(request, response, xfer_msg=None):
     if not samplesheet.exists:
         raise HTTP_NOT_FOUND(str(samplesheet))
     samplesheet.read()
-    problems = list()
+    problems = set()
     header = TR(TH(),
                 TH('FCID'),
                 TH('Lane'),
@@ -357,22 +360,23 @@ def view(request, response, xfer_msg=None):
             else:
                 lanes.append(OPTION(str(i)))
         samplerefs = _get_sampleref_options(record[3])
-        warning = []
+        sample_warning = []
+        project_warning = []
         # Check valid sampleid
         sampleid = record[2]
         if not SAMPLEID_RX.match(sampleid):
             sampleid = '_'.join(sampleid.split('_')[:-1])
             if not SAMPLEID_RX.match(sampleid):
-                warning.append('Invalid sampleid')
+                sample_warning.append('Invalid sampleid')
         if record[4]:                   # Check index sequence; '-' for dual
             if set(record[4].upper()).difference(set('ATGC-')):
-                warning.append('Invalid nucleotide in index sequence!')
+                sample_warning.append('Invalid nucleotide in index sequence!')
             if index_sequence_length:
                 if index_sequence_length != len(record[4]):
-                    warning.append('Unequal length of index sequence!')
+                    sample_warning.append('Unequal length of index sequence!')
             other_seqindices = seqindex_lookup.get(record[1], set())
             if record[4] in other_seqindices:
-                warning.append('Index sequence already used in lane!')
+                sample_warning.append('Index sequence already used in lane!')
             else:
                 for other_seqindex in other_seqindices:
                     try:
@@ -381,25 +385,30 @@ def view(request, response, xfer_msg=None):
                         pass
                     else:
                         if hd < MIN_HAMMING_DISTANCE:
-                            warning.append('Too small difference between'
-                                           ' this index sequence and'
-                                           ' another in lane!')
+                            sample_warning.append('Too small difference between'
+                                                  ' this index sequence and'
+                                                  ' another in lane!')
                             break
                 seqindex_lookup.setdefault(record[1], set()).add(record[4])
             indexseq = interpret_sampleid_for_index(record[2], append_a)
             if indexseq and indexseq != record[4]:
-                warning.append('SampleID and index sequence inconsistent!')
+                sample_warning.append('SampleID and index sequence inconsistent!')
             if not record[4]:
-                warning.append('index sequence missing!')
+                sample_warning.append('index sequence missing!')
         else:
-            warning.append('Missing sequence!')
-        if warning:
-            problems.append(str(pos+1))
-        warning = B('<br>'.join(warning), style='color: red;')
+            sample_warning.append('Missing sequence!')
+        if sample_warning:
+            problems.add(pos+1)
+        sample_warning = B('<br>'.join(sample_warning), style='color: red;')
         # The abominable dot '.' in project identifiers is stored as
         # double underscore, since CASAVA cannot handle dot.
         # For display purposes, the dot is shown instead of double underscore.
         description = record[5].replace('__', '.')
+        if not PROJECTID_RX.match(record[5]):
+            project_warning.append('Project ID is malformed')
+        if project_warning:
+            problems.add(pos+1)
+        project_warning = B('<br>'.join(project_warning), style='color: red;')
         # The Operator column may also contain the 'Failed' flag.
         failed = record[8].split('_')[-1] == 'failed'
         rows.append(TR(TD(str(pos+1)),
@@ -407,12 +416,13 @@ def view(request, response, xfer_msg=None):
                        TD(SELECT(name="lane%i" % pos, *lanes)),
                        TD(INPUT(type='text', name="sampleid%i" % pos,
                                 value=record[2], size=30),
-                          warning),
+                          sample_warning),
                        TD(SELECT(name="sampleref%i" % pos, *samplerefs)),
                        TD(INPUT(type='text', name="index%i" % pos,
                                 value=record[4], size=10)),
                        TD(INPUT(type='text', name="description%i" % pos,
-                                value=description, size=24)),
+                                value=description, size=24),
+                          project_warning),
                        TD(INPUT(type='radio', name="control%i" % pos,
                                 value='N', checked=record[6]=='N'), 'N ',
                           BR(),
@@ -463,7 +473,7 @@ def view(request, response, xfer_msg=None):
                         LI('To modify a record, change the value'
                            ' in the field, then save.'),
                         LI('Offensive characters in Project Identifiers'
-                           ' are now automatically converted'
+                           ' will be automatically converted'
                            ' to underscores.'),
                         LI('SampleID must look like ',
                            B('P123_456'), ', possibly with any of the'
@@ -529,8 +539,9 @@ def view(request, response, xfer_msg=None):
     if xfer_msg:
         warning.append(P(xfer_msg))
     if problems:
-        warning.append(P("There are problems regarding records %s!" %
-                         ', '.join(problems)))
+        problems = sorted(problems)
+        problems = ', '.join(map(str, problems))
+        warning.append(P("There are problems regarding records %s!" % problems))
     warning = DIV(style='color: red;', *warning)
     form = FORM(P(INPUT(type='submit', value='Save'),
                   ' Store the samplesheet. The pipeline computer (comicbookguy)'
