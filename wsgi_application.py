@@ -615,7 +615,7 @@ def update(request, response):
             if sampleref.lower() in SAMPLEREFS_SET:
                 record.append(sampleref) # 'SampleRef'
             else:
-                record.append('')
+                record.append('unknown')
             record.append(interpret_sampleid_for_index(sampleid)) # 'Index'
             project = cleanup_identifier(row[2])
             if not project: continue
