@@ -98,8 +98,10 @@ SAMPLEREFS = [dict(value='unknown'),
               dict(value='tair9', label='arabidopsis'),
               dict(value='xenTro2', label='xenopus'),
               dict(value='sacCer2', label='yeast'),
-              dict(value='WS210', label='worm')]
-SAMPLEREFS_SET = set([s['value'] for s in SAMPLEREFS])
+              dict(value='WS210', label='worm'),
+              dict(value='other')]
+# NOTE: lower-case!
+SAMPLEREFS_SET = set([s['value'].lower() for s in SAMPLEREFS])
 
 
 
@@ -610,7 +612,7 @@ def update(request, response):
             if not sampleid: continue
             record.append(sampleid)      # 'SampleID'
             sampleref = row[3].strip()
-            if sampleref in SAMPLEREFS_SET:
+            if sampleref.lower() in SAMPLEREFS_SET:
                 record.append(sampleref) # 'SampleRef'
             else:
                 record.append('')
@@ -732,8 +734,9 @@ def update(request, response):
 
 def _get_sampleref_options(selected):
     "Get the list of OPTION elements."
+    selected = selected.lower()
     for found in SAMPLEREFS:
-        if found['value'] == selected:
+        if found['value'].lower() == selected:
             break
     else:
         found = SAMPLEREFS[1]           # Yes! Item number 2 (index 1)
