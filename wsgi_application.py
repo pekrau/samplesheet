@@ -734,7 +734,8 @@ def update(request, response):
 
 def _get_sampleref_options(selected):
     "Get the list of OPTION elements."
-    selected = selected.lower()
+    if selected:
+        selected = selected.lower()
     for found in SAMPLEREFS:
         if found['value'].lower() == selected:
             break
