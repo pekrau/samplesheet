@@ -1,5 +1,11 @@
 """ Sequence index definitions for samplesheet generator.
 
+2013-03-14
+Removed the interpretation of "_{number}" as a number for
+a TruSeq Illumina index. Now a prefix to the number is required.
+This was done to reduce the risk of misinterpreting a sample id
+as an index specification.
+
 Per Kraulis, Pontus Larsson
 """
 
@@ -44,8 +50,6 @@ ILLUMINA = dict(index1='ATCACG',
                 index27='ATTCCT')
 BASIC_LOOKUP.update(ILLUMINA)
 INDEX_LOOKUP.update(ILLUMINA)
-INDEX_LOOKUP.update(dict([(k.replace('index', ''), v)
-                          for k,v in ILLUMINA.items()]))
 INDEX_LOOKUP.update(dict([(k.replace('index', 'idx'), v)
                           for k,v in ILLUMINA.items()]))
 INDEX_LOOKUP.update(dict([(k.replace('index', 'in'), v)

@@ -2,6 +2,9 @@
 
 Apache WSGI interface using the 'wireframe' package.
 
+NOTE: Modified to behave well while transferring the system
+from maggie to oldb3.
+
 The transfer of samplesheets to the remote machine (comicbookguy, CBG)
 has been changed. The 'push' model used previously, whereby this script
 used scp to transfer a newly modified file to CBG, has been scrapped.
@@ -55,6 +58,10 @@ from wireframe.response import *
 hostname = socket.gethostname()
 if hostname == 'kraulis':               # Development machine
     URL_BASE = 'http://localhost/samplesheet'
+elif hostname in ('oldb3.scilifelab.se', # New production machine; aliases
+                  'tools.scilifelab.se',
+                  'tools'):
+    URL_BASE = '/samplesheet'
 elif hostname == 'maggie':              # Production machine
     URL_BASE = 'http://tools.scilifelab.se/samplesheet'
 else:
@@ -487,7 +494,7 @@ def view(request, response, xfer_msg=None):
                                     TH('Alternate short index spec')),
                                  TR(TD('Ordinary Illumina'),
                                     TD('sampleid_index3'),
-                                    TD('sampleid_3')),
+                                    TD('sampleid_i3')),
                                  TR(TD('Small RNA'),
                                     TD('sampleid_rpi6'),
                                     TD('sampleid_r6')),
