@@ -211,6 +211,8 @@ class Samplesheet(object):
             # Convert lane to int
             record[1] = int(record[1])
             # Index sequence: Convert dummy to empty.
+            # NOTE: Keep this even if the QQQQQQ dummy is no longer used
+            # for output; old samplesheets may still have the dummy.
             if record[4] == 'QQQQQQ':
                 record[4] = ''
             # Upgrade to new samplesheet; additional column 'SampleProject'
@@ -235,9 +237,6 @@ class Samplesheet(object):
         writer = csv.writer(outfile, quoting=csv.QUOTE_MINIMAL)
         writer.writerow(self.header)
         for record in self.records:
-            # Index sequence: Convert empty to dummy.
-            if record[4] == '':
-                record[4] = 'QQQQQQ'
             # Copy over data to 'SampleProject' from 'Description'.
             record[9] = record[5]
             writer.writerow(record)
