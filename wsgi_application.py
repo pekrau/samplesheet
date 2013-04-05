@@ -57,13 +57,11 @@ from wireframe.response import *
 
 hostname = socket.gethostname()
 if hostname == 'kraulis':               # Development machine
-    URL_BASE = 'http://localhost/samplesheet'
-elif hostname in ('oldb3.scilifelab.se', # New production machine; aliases
-                  'tools.scilifelab.se',
-                  'tools'):
     URL_BASE = '/samplesheet'
-elif hostname == 'maggie':              # Production machine
-    URL_BASE = 'http://tools.scilifelab.se/samplesheet'
+elif hostname == 'tools':               # New production machine
+    URL_BASE = '/samplesheet'
+elif hostname == 'maggie':              # Old production machine
+    URL_BASE = '/samplesheet'
 else:
     raise NotImplementedError("host %s" % hostname)
 
@@ -106,6 +104,7 @@ SAMPLEREFS = [dict(value='unknown'),
               dict(value='xenTro2', label='xenopus'),
               dict(value='sacCer2', label='yeast'),
               dict(value='WS210', label='worm'),
+              dict(value='CanFam3', label='dog'),
               dict(value='other')]
 # NOTE: lower-case!
 SAMPLEREFS_SET = set([s['value'].lower() for s in SAMPLEREFS])
