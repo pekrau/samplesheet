@@ -50,7 +50,7 @@ import subprocess
 
 from HyperText.HTML40 import *
 from samplesheet.index_definitions import INDEX_LOOKUP
-from samplesheet.annotate_index import hamming_distance
+from samplesheet.annotate_index import hamming_distance, levenshtein_distance
 
 import wireframe.application
 from wireframe.response import *
@@ -80,8 +80,9 @@ PROJECTID_RX = re.compile(r'^[A-Z]+__[A-Z][a-zA-Z]+_[0-9]{2,2}_[0-9]{2,2}$')
 # XXX Relaxed regexp: Was considered too sloppy, not used.
 # PROJECTID_RX = re.compile(r'^[A-Z][a-zA-Z_]+_[0-9]{2,2}_[0-9]{2,2}$')
 
-# Minimum allowed Hamming distance between index sequences in a lane.
+# Minimum allowed edit distances between index sequences in a lane.
 MIN_HAMMING_DISTANCE = 3
+MIN_LEVENSHTEIN_DISTANCE = 3
 
 HEADER = ('FCID',
           'Lane',
@@ -389,16 +390,20 @@ def view(request, response, xfer_msg=None):
                 sample_warning.append('Index sequence already used in lane!')
             else:
                 for other_seqindex in other_seqindices:
-                    try:
-                        hd = hamming_distance(record[4], other_seqindex)
-                    except ValueError:
-                        pass
-                    else:
-                        if hd < MIN_HAMMING_DISTANCE:
-                            sample_warning.append('Too small difference between'
-                                                  ' this index sequence and'
-                                                  ' another in lane!')
-                            break
+                    ld = levenshtein_distance(record[4], other_seqindex,
+                                              shortest=True)
+                    if ld < MIN_LEVENSHTEIN_DISTANCE:
+                        sample_warning.append('Too small Levenshtein distance'
+                                              ' between this index sequence'
+                                              ' and another in lane!')
+                        break
+                    hd = hamming_distance(record[4], other_seqindex,
+                                          shortest=True)
+                    if hd < MIN_HAMMING_DISTANCE:
+                        sample_warning.append('Too small Hamming distance'
+                                              ' between this index sequence'
+                                              ' and another in lane!')
+                        break
                 seqindex_lookup.setdefault(record[1], set()).add(record[4])
             indexseq = interpret_sampleid_for_index(record[2], append_a)
             if indexseq and indexseq != record[4]:
