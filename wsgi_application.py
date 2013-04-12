@@ -82,7 +82,7 @@ PROJECTID_RX = re.compile(r'^[A-Z]+__[A-Z][a-zA-Z]+_[0-9]{2,2}_[0-9]{2,2}$')
 
 # Minimum allowed edit distances between index sequences in a lane.
 MIN_HAMMING_DISTANCE = 3
-MIN_LEVENSHTEIN_DISTANCE = 3
+MIN_LEVENSHTEIN_DISTANCE = 2
 
 HEADER = ('FCID',
           'Lane',
