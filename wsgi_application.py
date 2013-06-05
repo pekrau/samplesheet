@@ -2,8 +2,7 @@
 
 Apache WSGI interface using the 'wireframe' package.
 
-NOTE: Modified to behave well while transferring the system
-from maggie to oldb3.
+NOTE: Modified to behave after transferring the system from maggie to tools.
 
 The transfer of samplesheets to the remote machine (comicbookguy, CBG)
 has been changed. The 'push' model used previously, whereby this script
@@ -46,7 +45,6 @@ from cStringIO import StringIO
 import socket
 import time
 import string
-import subprocess
 
 from HyperText.HTML40 import *
 from samplesheet.index_definitions import INDEX_LOOKUP
@@ -55,18 +53,14 @@ from samplesheet.annotate_index import hamming_distance, levenshtein_distance
 import wireframe.application
 from wireframe.response import *
 
-hostname = socket.gethostname()
-if hostname == 'kraulis':               # Development machine
-    URL_BASE = '/samplesheet'
-elif hostname == 'tools':               # New production machine
-    URL_BASE = '/samplesheet'
-elif hostname == 'maggie':              # Old production machine
-    URL_BASE = '/samplesheet'
-else:
-    raise NotImplementedError("host %s" % hostname)
+URL_BASE = '/samplesheet'               # Previously configurable, now fixed!
 
-DATA_DIR  = '/var/local/samplesheet'
-TRASH_DIR = '/var/local/samplesheet/trash'
+hostname = socket.gethostname().split('.')[0]
+if hostname == 'kraulis2':      # Development machine
+    DATA_DIR  = '/var/local/samplesheet'
+else:                           # Production machine
+    DATA_DIR  = '/srv/mfs/samplesheets'
+TRASH_DIR = os.path.join(DATA_DIR, 'trash')
 
 # Strict set of allowed characters, to match CASAVA requirements
 ALLOWED_CHARS = set(string.ascii_letters + string.digits + '_-')
@@ -294,7 +288,21 @@ def get_samplesheets():
     sheets.reverse()
     return sheets
 
+def invalid_data_dir(request, response):
+    "Check whether the DATA_DIR exists and is readable."
+    try:
+        os.listdir(DATA_DIR)
+    except OSError, msg:
+        response['Content-Type'] = 'text/html'
+        response.append(str(HTML(HEAD(TITLE('Error')),
+                                 BODY(H1('Error'),
+                                      P("Unable to read DATA_DIR '%s'." % DATA_DIR),
+                                      P('Contact Per Kraulis, Pontus Larsson or Niclas Rosell.')))))
+        return True
+        
+
 def home(request, response):
+    if invalid_data_dir(request, response): return
     rows = [TR(TH('Samplesheet'),
                TH('Modified'))]
     for sheet in get_samplesheets():
@@ -324,6 +332,7 @@ def home(request, response):
                                   P(table)))))
 
 def create(request, response):
+    if invalid_data_dir(request, response): return
     samplesheet = Samplesheet(request.cgi_fields['FCID'].value.strip())
     if samplesheet.exists:
         raise HTTP_BAD_REQUEST('FCID samplesheet exists already')
@@ -331,6 +340,7 @@ def create(request, response):
     raise HTTP_SEE_OTHER(Location=samplesheet.url)
 
 def view(request, response, xfer_msg=None):
+    if invalid_data_dir(request, response): return
     samplesheet = Samplesheet(request.path_named_values['fcid'])
     if not samplesheet.exists:
         raise HTTP_NOT_FOUND(str(samplesheet))
@@ -576,6 +586,7 @@ def view(request, response, xfer_msg=None):
                                   form))))
 
 def update(request, response):
+    if invalid_data_dir(request, response): return
     samplesheet = Samplesheet(request.path_named_values['fcid'])
     samplesheet.read()
 
@@ -772,6 +783,7 @@ def _get_sampleref_options(selected):
 
 
 def delete(request, response):
+    if invalid_data_dir(request, response): return
     samplesheet = Samplesheet(request.path_named_values['fcid'])
     os.rename(samplesheet.filepath,
               os.path.join(TRASH_DIR, samplesheet.fcid + '.csv'))
@@ -779,6 +791,7 @@ def delete(request, response):
 
 
 def download(request, response):
+    if invalid_data_dir(request, response): return
     fcid = request.path_named_values['fcid']
     if fcid == 'list':
         outfile = StringIO()
