@@ -37,14 +37,14 @@ ILLUMINA = dict(index1='ATCACG',
                 index14='AGTTCC',
                 index15='ATGTCA',
                 index16='CCGTCC',
-                # index17 is "reserved" by Illumina
+                index17='GTAGAG', # 17 is "reserved" by Illumina, used by others
                 index18='GTCCGC',
                 index19='GTGAAA',
                 index20='GTGGCC',
                 index21='GTTTCG',
                 index22='CGTACG',
                 index23='GAGTGG',
-                # index24 is "reserved" by Illumina
+                index24='GGTAGC', # 24 is "reserved" by Illumina, used by others
                 index25='ACTGAT',
                 # index26 is "reserved" by Illumina
                 index27='ATTCCT')
@@ -686,6 +686,47 @@ NEXTERADUAL = dict(
     nxdual96='GTAGAGGA-CTAAGCCT')
 BASIC_LOOKUP.update(NEXTERADUAL)
 INDEX_LOOKUP.update(NEXTERADUAL)
+
+
+# Indexes converting Haloplex to dual
+# Transformation deduced from Excel file provided by Sverker Lundin 2013-07-11
+HALOHTDUAL = dict()
+suffix = '-TCTTTCCC'
+for key, value in HALOHT.iteritems():
+    HALOHTDUAL[key + 'dual'] = value + suffix
+BASIC_LOOKUP.update(HALOHTDUAL)
+INDEX_LOOKUP.update(HALOHTDUAL)
+
+
+# Illumina indexes converted to dual.
+# From Excel file provided by Sverker Lundin 2013-07-11
+ILLUMINADUAL = dict(index1dual='ATCACGAT-TCTTTCCC',
+                    index2dual='CGATGTAT-TCTTTCCC',
+                    index3dual='TTAGGCAT-TCTTTCCC',
+                    index4dual='TGACCAAT-TCTTTCCC',
+                    index5dual='ACAGTGAT-TCTTTCCC',
+                    index6dual='GCCAATAT-TCTTTCCC',
+                    index7dual='CAGATCAT-TCTTTCCC',
+                    index8dual='ACTTGAAT-TCTTTCCC',
+                    index9dual='GATCAGAT-TCTTTCCC',
+                    index10dual='TAGCTTAT-TCTTTCCC',
+                    index11dual='GGCTACAT-TCTTTCCC',
+                    index12dual='CTTGTAAT-TCTTTCCC',
+                    index13dual='AGTCAACA-TCTTTCCC',
+                    index14dual='AGTTCCGT-TCTTTCCC',
+                    index15dual='ATGTCAGA-TCTTTCCC',
+                    index16dual='CCGTCCCG-TCTTTCCC',
+                    index18dual='GTCCGCAC-TCTTTCCC',
+                    index19dual='GTGAAACG-TCTTTCCC',
+                    index20dual='GTGGCCTT-TCTTTCCC',
+                    index21dual='GTTTCGGA-TCTTTCCC',
+                    index22dual='CGTACGTA-TCTTTCCC',
+                    index23dual='GAGTGGAT-TCTTTCCC',
+                    index25dual='ACTGATAT-TCTTTCCC',
+                    index27dual='ATTCCTTT-TCTTTCCC')
+BASIC_LOOKUP.update(ILLUMINADUAL)
+INDEX_LOOKUP.update(ILLUMINADUAL)
+
 
 # Finally, allow all upper-case variants of index designations.
 INDEX_LOOKUP.update(dict([(k.upper(), v)
