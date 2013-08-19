@@ -612,11 +612,16 @@ def update(request, response):
     except KeyError:
         pass
     else:
-        reader = csv.reader(StringIO(cutandpaste), delimiter='\t')
+        logging.debug('Cut-and-paste: "%s"', cutandpaste)
+        if '\t' in cutandpaste:
+            reader = csv.reader(StringIO(cutandpaste), delimiter='\t')
+        else:
+            reader = csv.reader(StringIO(cutandpaste), delimiter=',')
         rows = list(reader)
         # Skip first row if it looks like the header
         if rows and rows[0][0].strip() == 'Lane':
             rows = rows[1:]
+        logging.debug('rows: "%s"', rows)
         last_lane = None
         if samplesheet.records:
             control = samplesheet.records[-1][6]
