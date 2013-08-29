@@ -4,37 +4,11 @@ Apache WSGI interface using the 'wireframe' package.
 
 NOTE: Modified to behave after transferring the system from maggie to tools.
 
-The transfer of samplesheets to the remote machine (comicbookguy, CBG)
-has been changed. The 'push' model used previously, whereby this script
-used scp to transfer a newly modified file to CBG, has been scrapped.
-
 Currently, a 'pull' model is used. CBG has a rsync command in cron (user
 hiseq) which syncs the data directory on the web server with that on CBG.
 
 To allow for this, the directory structure of the samplesheet directory
 has been changed to agree with that used on CBG, i.e. yearly subdirectories.
-
-The reason for this change was that the ssh keys could not be made to
-work properly when the owner of the apache server was changed back to
-the default. We couldn't figure out why, and decided it wasn't worth
-the effort. Instead, the current solution was adopted.
-
-Modifications:
-
-Added 'Failed' flag; kludge involving the operator column.
-/Per Kraulis 2012-10-11
-
-Apply strict character control on sample name and project name, for CASAVA.
-/Per Kraulis 2012-05-10
-
-Added cut-and-paste feature.
-/Per Kraulis 2012-02-28
-
-The data visible in column 'Description' is now also stored in 'SampleProject'.
-This is a stop-gap solution.
-/Per Kraulis 2012-02-17
-
-/Per Kraulis, 2012-02-06
 """
 
 import logging
@@ -194,6 +168,10 @@ class Samplesheet(object):
         self.header = HEADER[:]         # Proper list copy!
         self.write()
 
+    def from_rows(self, rows):
+        self.records = rows[:]
+        self.fix_records()
+
     def read(self):
         try:
             infile = open(self.filepath, 'rU')
@@ -203,7 +181,10 @@ class Samplesheet(object):
         reader.next()                   # Skip past header
         self.header = HEADER[:]         # Use fresh header
         self.records = [record for record in reader if len(record)] # Skip empty
-        # Various fixes to the CSV data
+        self.fix_records()
+
+    def fix_records(self):
+        "Various fixes to original CSV data."
         for record in self.records:
             # Convert lane to int
             record[1] = int(record[1])
@@ -216,10 +197,18 @@ class Samplesheet(object):
             # and copy over data from 'Description'.
             if len(record) < 10:
                 record.append(record[5])
-            # Copy over data to 'Description' from 'SampleProject'
-            # if not already done.
-            elif record[9] and not record[5]:
+            # Else copy over data to 'Description' from 'SampleProject'.
+            else:
                 record[5] = record[9]
+                # Algorithm to change back first underscore to dot (signified
+                # by double underscore), unless special case like "GA_13_02"
+                # or "Spruce_13_01".
+                try:
+                    pos = record[5].index('_')
+                    if record[5][pos+1] not in '_0123456789':
+                        record[5] = record[5].replace('_', '__', 1)
+                except IndexError:
+                    pass
 
     def sort(self):
         self.records.sort(key=lambda r: (r[1], r[2]))
@@ -317,25 +306,46 @@ def home(request, response):
                  A('pontus.larsson@scilifelab.se',
                    href='mailto:pontus.larsson@scilifelab.se'),
                  ').'))
-    form = FORM('Flowcell ID: ',
-                INPUT(type='text', name='FCID'),
-                INPUT(type='submit', value='Create new samplesheet'),
-                method='POST',
-                action=get_url())
+    form1 = FORM('Flowcell ID: ',
+                 INPUT(type='text', name='FCID'),
+                 INPUT(type='submit', value='Create new samplesheet'),
+                 method='POST',
+                 action=get_url())
+    form2 = FORM('CSV file: ',
+                 INPUT(type='file', name='infile'),
+                 INPUT(type='submit', value='Upload new samplesheet'),
+                 method='POST',
+                 enctype='multipart/form-data',
+                 action=get_url())
     table = TABLE(*rows)
     response['Content-Type'] = 'text/html'
     title = 'Samplesheet editor'
     response.append(str(HTML(HEAD(TITLE(title)),
                              BODY(H1(title),
                                   info,
-                                  P(form),
+                                  P(form1),
+                                  P(form2),
                                   P(table)))))
 
 def create(request, response):
     if invalid_data_dir(request, response): return
-    samplesheet = Samplesheet(request.cgi_fields['FCID'].value.strip())
-    if samplesheet.exists:
-        raise HTTP_BAD_REQUEST('FCID samplesheet exists already')
+    try:
+        infile = request.cgi_fields['infile'].value.strip()
+    except KeyError:
+        samplesheet = Samplesheet(request.cgi_fields['FCID'].value.strip())
+        if samplesheet.exists:
+            raise HTTP_BAD_REQUEST('samplesheet exists already')
+    else:
+        reader = csv.reader(StringIO(infile))
+        rows = [row for row in reader if len(row)] # Skip empty
+        rows = rows[1:]                            # Skip header row
+        if not rows:
+            raise HTTP_BAD_REQUEST('empty file')
+        fcid = rows[1][0]
+        samplesheet = Samplesheet(fcid)
+        if samplesheet.exists:
+            raise HTTP_BAD_REQUEST('samplesheet exists already')
+        samplesheet.from_rows(rows)
     samplesheet.create()
     raise HTTP_SEE_OTHER(Location=samplesheet.url)
 
