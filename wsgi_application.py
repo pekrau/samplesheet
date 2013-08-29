@@ -378,14 +378,13 @@ def view(request, response, xfer_msg=None):
             append_a = len(record[4]) > 6 and record[4][-1] == 'A'
     if append_a is None:
         append_a = False
-    index_sequence_length = None
+    # Require same index sequence length within each lane.
+    index_sequence_lengths = [None] * 9     # 1-based index for max 8 lanes.
     for pos, record in enumerate(samplesheet.records):
-        # Same length of index sequence required for entire samplesheet!
-        if index_sequence_length is None and record[4]:
-            index_sequence_length = len(record[4])
+        lane = record[1]
         lanes = []
         for i in xrange(1, 9):
-            if i == record[1]:
+            if i == lane:
                 lanes.append(OPTION(str(i), selected=True))
             else:
                 lanes.append(OPTION(str(i)))
@@ -401,10 +400,12 @@ def view(request, response, xfer_msg=None):
         if record[4]:                   # Check index sequence; '-' for dual
             if set(record[4].upper()).difference(set('ATGC-')):
                 sample_warning.append('Invalid nucleotide in index sequence!')
-            if index_sequence_length:
-                if index_sequence_length != len(record[4]):
-                    sample_warning.append('Unequal length of index sequence!')
-            other_seqindices = seqindex_lookup.get(record[1], set())
+            if index_sequence_lengths[lane] is None:
+                index_sequence_lengths[lane] = len(record[4])
+            else:
+                if index_sequence_lengths[lane] != len(record[4]):
+                    sample_warning.append('Unequal length of index sequence in lane!')
+            other_seqindices = seqindex_lookup.get(lane, set())
             if record[4] in other_seqindices:
                 sample_warning.append('Index sequence already used in lane!')
             else:
@@ -423,7 +424,7 @@ def view(request, response, xfer_msg=None):
                                               ' between this index sequence'
                                               ' and another in lane!')
                         break
-                seqindex_lookup.setdefault(record[1], set()).add(record[4])
+                seqindex_lookup.setdefault(lane, set()).add(record[4])
             indexseq = interpret_sampleid_for_index(record[2], append_a)
             if indexseq and indexseq != record[4]:
                 sample_warning.append('SampleID and index sequence inconsistent!')
