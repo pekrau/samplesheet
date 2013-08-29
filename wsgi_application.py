@@ -368,8 +368,7 @@ def view(request, response, xfer_msg=None):
                 TH('ProjectID'),
                 TH('Control'),
                 TH('Recipe'),
-                TH('Operator'),
-                TH('Run Failed'))
+                TH('Operator'))
     rows = []
     seqindex_lookup = dict()            # Key: lane number, value: seq index
     # Figure out whether that extra A has been appended previously.
@@ -444,8 +443,6 @@ def view(request, response, xfer_msg=None):
         if project_warning:
             problems.add(pos+1)
         project_warning = B('<br>'.join(project_warning), style='color: red;')
-        # The Operator column may also contain the 'Failed' flag.
-        failed = record[8].split('_')[-1] == 'failed'
         rows.append(TR(TD(str(pos+1)),
                        TD(record[0]),
                        TD(SELECT(name="lane%i" % pos, *lanes)),
@@ -466,9 +463,7 @@ def view(request, response, xfer_msg=None):
                        TD(INPUT(type='text', name="recipe%i" % pos,
                                 value=record[7], size=4)),
                        TD(INPUT(type='text', name="operator%i" % pos,
-                                value=record[8], size=4)),
-                       TD(INPUT(type='checkbox', name="failed%i" % pos,
-                                value='failed', checked=failed))))
+                                value=record[8], size=4))))
     try:
         previous_lane = samplesheet.records[-1][1]
         previous_sampleref = samplesheet.records[-1][3]
@@ -548,12 +543,7 @@ def view(request, response, xfer_msg=None):
                                  TR(TD('Illumina Dual'),
                                     TD('sampleid_index15dual')),
                                  border=1,
-                                 cellpadding=2)),
-                        LI('After the sequencing run, check the box'
-                           ' "Run Failed" for samples in lanes which ',
-                           B('do not'),
-                           ' reach the QC criteria. Those reads will not'
-                           ' be counted in the sum total for the sample.')))
+                                 cellpadding=2))))
     ops = TABLE(TR(TD(FORM(I('Cut-and-paste 4 columns'
                              ' (Lane, Sample, Project, Ref.genome).'),
                            TEXTAREA(name='cutandpaste', cols=40, rows=4),
@@ -706,16 +696,6 @@ def update(request, response):
         record[6] = request.cgi_fields["control%i" % pos].value
         record[7] = get_default(request, "recipe%i" % pos)
         record[8] = get_default(request, "operator%i" % pos)
-        # Encode the 'Failed' flag into Operator column
-        parts = record[8].split('_')
-        failed = get_default(request, "failed%i" % pos)
-        if failed:
-            if parts[-1] != 'failed':
-                parts.append('failed')
-        else:
-            if parts[-1] == 'failed':
-                parts = parts[:-1]
-        record[8] = '_'.join(parts)
 
     # Only keep records with defined SamplieID; delete all others
     samplesheet.records = [r for r in samplesheet.records if r[2]]
