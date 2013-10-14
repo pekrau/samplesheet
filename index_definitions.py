@@ -716,6 +716,7 @@ ILLUMINADUAL = dict(index1dual='ATCACGAT-TCTTTCCC',
                     index14dual='AGTTCCGT-TCTTTCCC',
                     index15dual='ATGTCAGA-TCTTTCCC',
                     index16dual='CCGTCCCG-TCTTTCCC',
+                    index17dual='GTAGAGAT-TCTTTCCC', # Added 2013-10-14: "AT"?
                     index18dual='GTCCGCAC-TCTTTCCC',
                     index19dual='GTGAAACG-TCTTTCCC',
                     index20dual='GTGGCCTT-TCTTTCCC',
