@@ -64,7 +64,6 @@ HEADER = ('FCID',
           'SampleProject')
 
 SAMPLEREFS = [dict(value='unknown'),
-              # item number 2 (index 1) is default
               dict(value='hg19', label='human'),
               dict(value='hg18', label='human'),
               dict(value='phix', label='bacteriophage'),
@@ -188,6 +187,9 @@ class Samplesheet(object):
         for record in self.records:
             # Convert lane to int
             record[1] = int(record[1])
+            # Blank reference genome must converted to 'unknown' for pipeline
+            if not record[3].strip():
+                record[3] = 'unknown'
             # Index sequence: Convert dummy to empty.
             # NOTE: Keep this even if the QQQQQQ dummy is no longer used
             # for output; old samplesheets may still have the dummy.
@@ -207,7 +209,7 @@ class Samplesheet(object):
                     pos = record[5].index('_')
                     if record[5][pos+1] not in '_0123456789':
                         record[5] = record[5].replace('_', '__', 1)
-                except IndexError:
+                except (ValueError, IndexError):
                     pass
 
     def sort(self):
@@ -396,18 +398,20 @@ def view(request, response, xfer_msg=None):
         if not SAMPLEID_RX.match(sampleid):
             sampleid = '_'.join(sampleid.split('_')[:-1])
             if not SAMPLEID_RX.match(sampleid):
-                sample_warning.append('Invalid sampleid')
+                sample_warning.append('Invalid SampleID.')
+        if record[3] == 'unknown':
+            sample_warning.append('Unknown SampleRef.')
         if record[4]:                   # Check index sequence; '-' for dual
             if set(record[4].upper()).difference(set('ATGC-')):
-                sample_warning.append('Invalid nucleotide in index sequence!')
+                sample_warning.append('Invalid nucleotide in index sequence.')
             if index_sequence_lengths[lane] is None:
                 index_sequence_lengths[lane] = len(record[4])
             else:
                 if index_sequence_lengths[lane] != len(record[4]):
-                    sample_warning.append('Unequal length of index sequence in lane!')
+                    sample_warning.append('Unequal length of index sequence in lane.')
             other_seqindices = seqindex_lookup.get(lane, set())
             if record[4] in other_seqindices:
-                sample_warning.append('Index sequence already used in lane!')
+                sample_warning.append('Index sequence already used in lane.')
             else:
                 for other_seqindex in other_seqindices:
                     ld = levenshtein_distance(record[4], other_seqindex,
@@ -415,23 +419,23 @@ def view(request, response, xfer_msg=None):
                     if ld < MIN_LEVENSHTEIN_DISTANCE:
                         sample_warning.append('Too small Levenshtein distance'
                                               ' between this index sequence'
-                                              ' and another in lane!')
+                                              ' and another in lane.')
                         break
                     hd = hamming_distance(record[4], other_seqindex,
                                           shortest=True)
                     if hd < MIN_HAMMING_DISTANCE:
                         sample_warning.append('Too small Hamming distance'
                                               ' between this index sequence'
-                                              ' and another in lane!')
+                                              ' and another in lane.')
                         break
                 seqindex_lookup.setdefault(lane, set()).add(record[4])
             indexseq = interpret_sampleid_for_index(record[2], append_a)
             if indexseq and indexseq != record[4]:
-                sample_warning.append('SampleID and index sequence inconsistent!')
+                sample_warning.append('SampleID and index sequence inconsistent.')
             if not record[4]:
-                sample_warning.append('index sequence missing!')
+                sample_warning.append('Index sequence missing.')
         else:
-            sample_warning.append('Missing sequence!')
+            sample_warning.append('Missing sequence.')
         if sample_warning:
             problems.add(pos+1)
         sample_warning = B('<br>'.join(sample_warning), style='color: red;')
@@ -698,7 +702,7 @@ def update(request, response):
         record[7] = get_default(request, "recipe%i" % pos)
         record[8] = get_default(request, "operator%i" % pos)
 
-    # Only keep records with defined SamplieID; delete all others
+    # Only keep records with defined SampleID; delete all others
     samplesheet.records = [r for r in samplesheet.records if r[2]]
 
     # Add a new record
@@ -766,7 +770,7 @@ def _get_sampleref_options(selected):
         if found['value'].lower() == selected:
             break
     else:
-        found = SAMPLEREFS[1]           # Yes! Item number 2 (index 1)
+        found = SAMPLEREFS[0]           # Item number 1 'unknown' is default
     options = []
     for sampleref in SAMPLEREFS:
         try:
