@@ -40,7 +40,7 @@ TRASH_DIR = os.path.join(DATA_DIR, 'trash')
 ALLOWED_CHARS = set(string.ascii_letters + string.digits + '_-')
 
 # Sample identifier regexp
-SAMPLEID_RX = re.compile(r'^P\d{3,3}_\d{3,4}[ABCDF]?$')
+SAMPLEID_RX = re.compile(r'^P\d{3,4}_\d{3,4}[ABCDF]?$')
 
 # Project identifier regexp
 # Original, strict regexp
