@@ -547,6 +547,8 @@ def view(request, response, xfer_msg=None):
                                     TD('sampleid_haloht15dual')),
                                  TR(TD('Illumina Dual'),
                                     TD('sampleid_index15dual')),
+                                 TR(TD('Agilent SureSelect XT'),
+                                    TD('sampleid_xtd04')),
                                  border=1,
                                  cellpadding=2))))
     ops = TABLE(TR(TD(FORM(I('Cut-and-paste 4 columns'
