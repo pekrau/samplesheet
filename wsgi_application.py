@@ -36,6 +36,8 @@ else:                           # Production machine
     DATA_DIR  = '/srv/mfs/samplesheets'
 TRASH_DIR = os.path.join(DATA_DIR, 'trash')
 
+FIRST_YEAR = 2011
+
 # Strict set of allowed characters, to match CASAVA requirements
 ALLOWED_CHARS = set(string.ascii_letters + string.digits + '_-')
 
@@ -126,7 +128,7 @@ class Samplesheet(object):
             return self._filepath
         except AttributeError:
             filename = self.fcid +'.csv'
-            for year in range(2011, get_year() + 1):
+            for year in range(FIRST_YEAR, get_year() + 1):
                 self._filepath = os.path.join(DATA_DIR, str(year), filename)
                 if os.path.exists(self._filepath): break
             return self._filepath
@@ -268,7 +270,7 @@ def interpret_sampleid_for_index(sampleid, append_a=False):
 def get_samplesheets():
     "Return list of all samplesheets in reverse chronological order."
     sheets = []
-    for year in range(2011, get_year() + 1):
+    for year in range(FIRST_YEAR, get_year() + 1):
         dirpath = os.path.join(DATA_DIR, str(year))
         if not os.path.exists(dirpath): continue
         for filename in os.listdir(dirpath):
@@ -372,7 +374,8 @@ def view(request, response, xfer_msg=None):
                 TH('Recipe'),
                 TH('Operator'))
     rows = []
-    seqindex_lookup = dict()            # Key: lane number, value: seq index
+    # Key: lane number, value: tuple (seq index, SampleID)
+    seqindex_lookup = dict()
     # Figure out whether that extra A has been appended previously.
     append_a = None
     for record in samplesheet.records:
@@ -413,22 +416,24 @@ def view(request, response, xfer_msg=None):
             if record[4] in other_seqindices:
                 sample_warning.append('Index sequence already used in lane.')
             else:
-                for other_seqindex in other_seqindices:
+                for other_seqindex, other_sampleid in other_seqindices:
                     ld = levenshtein_distance(record[4], other_seqindex,
                                               shortest=True)
                     if ld < MIN_LEVENSHTEIN_DISTANCE:
                         sample_warning.append('Too small Levenshtein distance'
                                               ' between this index sequence'
-                                              ' and another in lane.')
+                                              ' and sample %s in lane.'
+                                              % other_sampleid)
                         break
                     hd = hamming_distance(record[4], other_seqindex,
                                           shortest=True)
                     if hd < MIN_HAMMING_DISTANCE:
                         sample_warning.append('Too small Hamming distance'
                                               ' between this index sequence'
-                                              ' and another in lane.')
+                                              ' and sample %s in lane.'
+                                              % other_sampleid)
                         break
-                seqindex_lookup.setdefault(lane, set()).add(record[4])
+                seqindex_lookup.setdefault(lane, set()).add((record[4], record[2]))
             indexseq = interpret_sampleid_for_index(record[2], append_a)
             if indexseq and indexseq != record[4]:
                 sample_warning.append('SampleID and index sequence inconsistent.')
