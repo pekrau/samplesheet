@@ -44,6 +44,9 @@ ALLOWED_CHARS = set(string.ascii_letters + string.digits + '_-')
 # Sample identifier regexp
 SAMPLEID_RX = re.compile(r'^P\d{3,4}_\d{3,4}[ABCDF]?$')
 
+# Regexp for when index id is a sequence
+INDEXID_SEQ = re.compile(r'^[GCAT]{6,1000}$')
+
 # Project identifier regexp
 # Original, strict regexp
 PROJECTID_RX = re.compile(r'^[A-Z]+__[A-Z][a-zA-Z]+_[0-9]{2,2}_[0-9]{2,2}$')
@@ -257,11 +260,17 @@ def cleanup_identifier(identifier):
 
 def interpret_sampleid_for_index(sampleid, append_a=False):
     """Look for index number at end of sampleid.
+    If end of sampleid looks like a nucleotide sequence of
+    at least 6 bases, then use it,
     Also append that extra A if requested."""
+    indexid = sampleid.split('_')[-1]
     try:
-        result = INDEX_LOOKUP[sampleid.split('_')[-1]]
+        result = INDEX_LOOKUP[indexid]
     except (KeyError, IndexError):
-        return ''
+        if INDEXID_SEQ.match(indexid):
+            result = indexid
+        else:
+            return ''
     if result:
         if append_a: result += 'A'
     return result
@@ -518,6 +527,8 @@ def view(request, response, xfer_msg=None):
                         LI('SampleID must look like ',
                            B('P123_456'), ', possibly with any of the'
                            ' characters B, C, D or F attached.'),
+                        LI('If the index suffix looks like a nucleotide'
+                           ' sequence with at least 6 bases, it will be used.'),
                         LI('Specify index number for the sample by adding the'
                            ' appropriate suffix using underscore, like so:',
                            TABLE(TR(TH('Index type'),
